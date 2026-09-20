@@ -1,0 +1,35 @@
+[
+  {
+    "id": "demo-web3-public-goods",
+    "name": "DEMO: Fondo de bienes públicos web3",
+    "funder": "DEMO (no es una convocatoria real)",
+    "type": "grant",
+    "region": "global",
+    "focus": "infraestructura y herramientas abiertas para Ethereum",
+    "eligibility_summary": "Dato de demostración. Reemplazar por una convocatoria real curada.",
+    "official_url": "https://example.com/demo-1",
+    "is_demo": true
+  },
+  {
+    "id": "demo-latam-innovation",
+    "name": "DEMO: Convocatoria de innovación LatAm",
+    "funder": "DEMO (no es una convocatoria real)",
+    "type": "grant",
+    "region": "Colombia",
+    "focus": "emprendimientos de base tecnológica en etapa temprana",
+    "eligibility_summary": "Dato de demostración. Reemplazar por una convocatoria real curada.",
+    "official_url": "https://example.com/demo-2",
+    "is_demo": true
+  },
+  {
+    "id": "demo-ai-accelerator",
+    "name": "DEMO: Aceleradora de IA aplicada",
+    "funder": "DEMO (no es una convocatoria real)",
+    "type": "aceleradora",
+    "region": "global",
+    "focus": "productos con IA para sectores tradicionales",
+    "eligibility_summary": "Dato de demostración. Reemplazar por una convocatoria real curada.",
+    "official_url": "https://example.com/demo-3",
+    "is_demo": true
+  }
+]

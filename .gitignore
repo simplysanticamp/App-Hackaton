@@ -1,0 +1,25 @@
+# Secretos: nunca al repo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencias y builds
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# Local de Claude Code
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
