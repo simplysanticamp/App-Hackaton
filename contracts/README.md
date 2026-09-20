@@ -1,66 +1,129 @@
-## Foundry
+# Bootstrap — capa de contratos
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+> No buscamos financiación para startups que ya existen. Convertimos ideas en proyectos financiables, y
+> certificamos cada paso onchain para que cualquier financiador pueda verificarlo sin confiar en la palabra
+> del founder.
 
-Foundry consists of:
+Tres contratos, ninguno más. Lo que va onchain es lo que un tercero necesita para **verificar sin confiar**:
+identidad del proyecto, hitos con hash de evidencia, y a qué fondos se aplicó. Todo lo demás (research,
+matching, pitch, archivos de evidencia, metadata pesada) vive offchain.
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+| Contrato | Qué certifica | Quién escribe |
+|---|---|---|
+| `ProjectPassport.sol` | Identidad del proyecto: un NFT **soulbound** (ERC-721 + ERC-5192) por proyecto | El founder o el `owner` |
+| `Milestones.sol` | Hitos alcanzados: descripción + `bytes32` del hash de la evidencia, y su verificación | Agrega: dueño del passport o `VALIDATOR_ROLE` · Verifica: solo `VALIDATOR_ROLE` |
+| `FundingRegistry.sol` | Aplicaciones a convocatorias y financiación reportada | Dueño del passport o `RECORDER_ROLE` |
 
-## Documentation
+### Lo que estos contratos NO hacen
 
-https://book.getfoundry.sh/
+Importante para leerlos con las expectativas correctas:
 
-## Usage
+- **No custodian ni mueven fondos.** `FundingRegistry` no es `payable`, no tiene `receive`/`fallback`, no
+  transfiere ERC-20 y no tiene función de retiro. `recordFundingReceived` escribe un dato, nada más.
+- **No hacen KYC.** El passport certifica evidencia de actividad, no identidad legal.
+- **No guardan evidencia.** Solo el `keccak256` del archivo, calculado offchain. El archivo nunca toca la cadena.
+- **No prueban que una aplicación exista o fuera aceptada.** `FundingRegistry` es un registro
+  **auto-reportado**: certifica qué declaró el founder y cuándo. Un financiador debe contrastarlo con su fuente.
+- **No indexan.** El historial se lee vía la API de Blockscout desde el frontend, o con las funciones `get*`.
 
-### Build
+## Requisitos
 
-```shell
-$ forge build
+[Foundry](https://book.getfoundry.sh/getting-started/installation). En Windows, los binarios están en
+`%USERPROFILE%\.foundry\bin` y hay que agregarlos al `PATH` de la sesión:
+
+```powershell
+$env:PATH = "$env:USERPROFILE\.foundry\bin;$env:PATH"
 ```
 
-### Test
+OpenZeppelin Contracts 5.4.0 y forge-std están vendorizados en `lib/`, así que no hace falta `forge install`.
 
-```shell
-$ forge test
+## Tests
+
+```bash
+forge build
+forge test -vvv          # 35 tests
+forge coverage           # 100% de líneas, ramas y funciones en src/
+forge fmt                # formato
 ```
 
-### Format
+Qué cubre la suite:
 
-```shell
-$ forge fmt
+- **`test/Bootstrap.t.sol`** — unit + fuzz de cada función pública, éxito y revert: soulbound (todas las
+  variantes de `transferFrom`/`safeTransferFrom` y las aprobaciones revierten), control de acceso por rol,
+  rotación de `VALIDATOR_ROLE`, validación de inputs, y que **ninguna operación funciona sobre un tokenId
+  inexistente**. Eventos verificados con `vm.expectEmit`.
+- **`test/Integration.t.sol`** — el flujo completo de la demo: mintear passport → agregar hito con hash →
+  verificarlo → registrar aplicación (enviada, luego aceptada) → reportar financiación → un financiador lee
+  todo el historial. Más un test de que el script combinado conecta bien las tres direcciones.
+
+## Deploy
+
+**Nunca** pongas una clave privada en el repo ni en la línea de comandos. Importa la wallet a un keystore
+cifrado una sola vez y refiérela con `--account`:
+
+```bash
+cast wallet import bootstrap-deployer --interactive
 ```
 
-### Gas Snapshots
+Variables de entorno (en `.env`, fuera del repo):
 
-```shell
-$ forge snapshot
+| Variable | Obligatoria | Para qué |
+|---|---|---|
+| `HSK_TESTNET_RPC` | sí | RPC de HSK Chain testnet (chain id **133**) |
+| `HSK_MAINNET_RPC` | solo mainnet | RPC de HSK Chain mainnet (chain id **177**) |
+| `VALIDATOR` | sí | Dirección que recibe `VALIDATOR_ROLE` en `Milestones` |
+| `OWNER` | no | Owner/admin de los tres contratos; por defecto, el deployer |
+| `PASSPORT_ADDRESS` | solo scripts individuales | Passport ya desplegado al que conectarse |
+
+### Todo de una (recomendado)
+
+```bash
+forge script script/Deploy.s.sol --rpc-url hsk_testnet --account bootstrap-deployer --broadcast
 ```
 
-### Anvil
+Imprime al final las tres direcciones ya en formato `CLAVE=valor`, listas para pegar en el `.env` del
+frontend (`PASSPORT_ADDRESS`, `MILESTONES_ADDRESS`, `FUNDING_REGISTRY_ADDRESS`).
 
-```shell
-$ anvil
+### Uno por uno
+
+```bash
+forge script script/DeployProjectPassport.s.sol  --rpc-url hsk_testnet --account bootstrap-deployer --broadcast
+# exportar PASSPORT_ADDRESS con la dirección impresa, luego:
+forge script script/DeployMilestones.s.sol       --rpc-url hsk_testnet --account bootstrap-deployer --broadcast
+forge script script/DeployFundingRegistry.s.sol  --rpc-url hsk_testnet --account bootstrap-deployer --broadcast
 ```
 
-### Deploy
+### Simular sin gastar gas
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+Quita `--broadcast`. Sin RPC configurado también corre: `forge script script/Deploy.s.sol` simula local.
+
+### Verificación en Blockscout
+
+```bash
+forge verify-contract <direccion> src/ProjectPassport.sol:ProjectPassport \
+  --verifier blockscout --verifier-url <explorer-hsk>/api --chain-id 133 \
+  --constructor-args $(cast abi-encode "constructor(address)" <owner>)
 ```
 
-### Cast
+`Milestones` usa `constructor(address,address,address)` (passport, validator, admin) y `FundingRegistry`
+`constructor(address,address)` (passport, admin).
 
-```shell
-$ cast <subcommand>
-```
+> Mainnet (177) **solo** con confirmación explícita del usuario, y antes de eso: `/audit` con contexto
+> fresco, `slither`, y mover `DEFAULT_ADMIN_ROLE` / `owner` a un multisig.
 
-### Help
+## Notas de diseño
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+- **Soulbound de verdad, no por convención.** El bloqueo está en `_update`, el punto único por el que pasan
+  mint, transfer y burn en OpenZeppelin v5. No hay ruta alterna para mover el token. `approve` y
+  `setApprovalForAll` también revierten, para que ningún marketplace pueda tomar control. Se implementa
+  ERC-5192 (`locked`) para que las wallets lo muestren como intransferible.
+- **`AccessControl`, no `Ownable`, donde hay verificación.** En la demo `VALIDATOR_ROLE` es una sola
+  dirección — un riesgo que reconocemos en el pitch. En producción ese rol se otorga a un multisig sin tener
+  que migrar el contrato ni redesplegar.
+- **Errores custom en vez de `require` con strings**: menos gas y mejor diagnóstico en el frontend.
+- **Registros inmutables.** Un cambio de estado de una aplicación se registra como una entrada nueva, no
+  sobrescribe: así el historial completo queda auditable.
+- **`evm_version = "paris"`** en `foundry.toml`: no está confirmado qué hardforks soporta HSK Chain, así que
+  se evitan opcodes nuevos (`PUSH0`, `MCOPY`).
+- **Las funciones `get*Milestones` / `getApplications` devuelven arrays sin tope**: son para `eth_call`
+  desde el frontend, no para llamarse desde otro contrato. Para paginar existe `count` + getter indexado.
