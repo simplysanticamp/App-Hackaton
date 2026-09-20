@@ -20,4 +20,6 @@ if (error) {
 }
 console.log(`OK: ${data.length} filas (${data.filter((r) => !r.is_demo).length} reales, ${data.filter((r) => r.is_demo).length} demo)`);
 if (data.length === 0) console.log("Tabla vacia: el agente usara las 3 filas DEMO locales.");
-for (const r of data) console.log(`- ${r.is_demo ? "[DEMO]" : "[REAL]"} ${r.name}`);
+// Muestra los caracteres no ASCII como \uXXXX: la consola de Windows dibuja mal los acentos aunque el dato esté bien.
+const esc = (t) => t.replace(/[^\x00-\x7f]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
+for (const r of data) console.log(`- ${r.is_demo ? "[DEMO]" : "[REAL]"} ${esc(r.name)}`);
