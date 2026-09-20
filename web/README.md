@@ -49,6 +49,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 | `NEXT_PUBLIC_HSK_TESTNET_EXPLORER` | sí | Explorer, para links a tx (opcional) |
 | `ANTHROPIC_API_KEY` | **no** | `/api/agent` |
 | `PASSPORT_ADDRESS`, `MILESTONES_ADDRESS` | no | lecturas de `/api/report/[tokenId]` |
+| `PINATA_JWT` | **no** | `/api/pin`: sube la metadata del Passport a IPFS |
 | `X402_PAY_TO` | no | payee del reporte (x402, Base Sepolia) |
 | Supabase (URL + clave publicable) | ver `.env.example` | convocatorias |
 
