@@ -5,11 +5,9 @@ import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 import { assertPaymentAllowed, PaymentDenied } from "./x402-policy";
 import { AgentError } from "./types";
+import { USDC_ASSET, USDC_DECIMALS, X402_CLIENT_NETWORK } from "../x402-shared";
 
-const NETWORK = "eip155:84532"; // Base Sepolia
-const USDC_DECIMALS = 6;
-// USDC de Circle en Base Sepolia (eip155:84532). Verificar en developers.circle.com/stablecoins/usdc-contract-addresses.
-const USDC_ASSET = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+const NETWORK = X402_CLIENT_NETWORK;
 const MAX_PER_TX_USD = process.env.AGENT_MAX_PER_TX_USD ?? "0.05";
 
 let _fetch: typeof fetch | null = null;

@@ -17,41 +17,8 @@ import {
 import { hskTestnet } from "@/lib/chains";
 import { hashEvidence } from "@/lib/evidence";
 import type { Address } from "viem";
-
-const date = (ts: bigint | number) =>
-  new Date(Number(ts) * 1000).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
-const shortHash = (h: string) => `${h.slice(0, 10)}…${h.slice(-6)}`;
-
-function Status({ verified, revoked }: { verified: boolean; revoked: boolean }) {
-  if (verified) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-verified">
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M2 7.5 5.5 11 12 3" />
-        </svg>
-        Verificado
-      </span>
-    );
-  }
-  if (revoked) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-danger">
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M3 3l8 8M11 3l-8 8" />
-        </svg>
-        Verificación revocada
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 text-muted">
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="7" cy="7" r="4.5" />
-      </svg>
-      Sin verificar
-    </span>
-  );
-}
+import Link from "next/link";
+import { date, shortHash, Status } from "@/components/ledger";
 
 function AddMilestone({ tokenId, onDone }: { tokenId: bigint; onDone: () => void }) {
   const [description, setDescription] = useState("");
@@ -126,6 +93,63 @@ function AddMilestone({ tokenId, onDone }: { tokenId: bigint; onDone: () => void
         confirmed={receipt.isSuccess}
         error={error ?? receipt.error}
       />
+      {receipt.isSuccess && (
+        <button className="btn btn-quiet" onClick={() => { onDone(); reset(); }}>Actualizar la lista</button>
+      )}
+    </section>
+  );
+}
+
+function AddApplication({ tokenId, onDone }: { tokenId: bigint; onDone: () => void }) {
+  const [name, setName] = useState("");
+  const [status, setStatus] = useState(1);
+  const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash });
+  const busy = isPending || receipt.isLoading;
+  const nameBytes = new TextEncoder().encode(name.trim()).length;
+  const valid = nameBytes > 0 && nameBytes <= 120;
+
+  return (
+    <section className="space-y-4">
+      <div className="flex items-baseline gap-3 border-b border-rule pb-2">
+        <h2 className="display text-[26px]">Registrar aplicación a un fondo</h2>
+      </div>
+      <div className="space-y-1">
+        <label className="label" htmlFor="app-name">Convocatoria</label>
+        <input
+          id="app-name"
+          className="field"
+          placeholder="Nombre de la convocatoria, tal como la declaras"
+          maxLength={120}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
+      <div className="space-y-1">
+        <label className="label" htmlFor="app-status">Estado</label>
+        <select id="app-status" className="field" value={status} onChange={(e) => setStatus(Number(e.target.value))}>
+          {APPLICATION_STATUS.map((label, i) => (
+            <option key={label} value={i}>{label}</option>
+          ))}
+        </select>
+      </div>
+      <p className="text-[13px] text-muted">
+        Es una declaración tuya: queda registrada con tu dirección y no se puede editar. Si el estado cambia,
+        registra una entrada nueva.
+      </p>
+      <button
+        className="btn"
+        disabled={!valid || busy}
+        onClick={() =>
+          writeContract(
+            { address: fundingRegistryAddress as Address, abi: fundingRegistryAbi, functionName: "recordFundingApplication", args: [tokenId, name.trim(), status] },
+            { onSuccess: () => setName("") },
+          )
+        }
+      >
+        {busy ? "Registrando…" : "Registrar aplicación onchain"}
+      </button>
+      <TxStatus hash={hash} signing={isPending} confirming={receipt.isLoading} confirmed={receipt.isSuccess} error={error ?? receipt.error} />
       {receipt.isSuccess && (
         <button className="btn btn-quiet" onClick={() => { onDone(); reset(); }}>Actualizar la lista</button>
       )}
@@ -254,6 +278,9 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
             </dd>
           </div>
         </dl>
+        <p className="text-[13px] lg:col-span-2">
+          <Link className="link" href={`/passport/${id}/reporte`}>Reporte de verificación para financiadores</Link>
+        </p>
         <p className="text-[13px] text-muted lg:col-span-2">
           Soulbound: no se puede transferir. Certifica evidencia, no identidad. Un hito solo cuenta como verificado
           cuando lo atesta un validator distinto de quien lo registró.
@@ -369,7 +396,10 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
 
       {isOwner ? (
         <NetworkGuard>
-          <AddMilestone tokenId={tokenId} onDone={() => milestones.refetch()} />
+          <div className="space-y-12">
+            <AddMilestone tokenId={tokenId} onDone={() => milestones.refetch()} />
+            {fundingRegistryAddress && <AddApplication tokenId={tokenId} onDone={() => apps.refetch()} />}
+          </div>
         </NetworkGuard>
       ) : (
         <p className="border-t border-rule pt-4 text-[13px] text-muted">

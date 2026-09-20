@@ -29,6 +29,7 @@ export const milestonesAbi = parseAbi([
 export const fundingRegistryAbi = parseAbi([
   "struct Application { string opportunityName; uint8 status; uint64 recordedAt; address author; }",
   "function getApplications(uint256 tokenId) view returns (Application[])",
+  "function recordFundingApplication(uint256 tokenId, string opportunityName, uint8 status) returns (uint256 applicationId)",
 ]);
 
 export const APPLICATION_STATUS = ["Pendiente", "Enviada", "En revisión", "Aceptada", "Rechazada"] as const;
