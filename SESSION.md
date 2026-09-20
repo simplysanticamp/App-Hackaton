@@ -48,6 +48,7 @@ marcadas `NO USAR`.
 - El frontend nunca toca el LLM: todo por `/api/agent`.
 
 ## Próximos pasos
+0. **Redesplegar contratos** (M1 revocación + M2 `ipfs://` obligatorio ya en el código, 46 tests en verde). Las direcciones de `deployments/133.json` son de la versión anterior. Lo firma Juan, que tiene la wallet `bootstrap-deployer` en su equipo; Santiago no.
 1. Verificar los 3 contratos en Blockscout. **Bloqueado**: `testnet-explorer.hsk.xyz` no resuelve en
    ningún resolver; hay que confirmar la URL real con los organizadores. Detalle en `BLOCKERS.md` §1.
 2. Exportar ABIs al front e integrar `FundingRegistry`, que todavía no está conectado y ya tiene lecturas

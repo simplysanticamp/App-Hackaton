@@ -96,11 +96,11 @@ Corrí `/audit` con contexto fresco sobre los contratos. Veredicto: **apto para 
 apto para mainnet ni para uso real con financiadores.** Corregí A1, A2, A3 y B1 (ver `DECISIONS.md` 25-28).
 Estos quedaron abiertos porque son funcionalidad nueva, no defectos, y estaban fuera del alcance que pediste:
 
-- **M1 — No hay revocación.** Una verificación errónea es permanente: no existe forma de desmarcar un hito
+- **M1 — ✅ RESUELTO (DECISIONS 37, pendiente redeploy).** ~~No hay revocación.~~ Una verificación errónea es permanente: no existe forma de desmarcar un hito
   ni de invalidar un registro. Un sistema de credenciales sin revocación no es del todo auditable.
   *Fix sugerido:* `revokeVerification(tokenId, milestoneId)` para `VALIDATOR_ROLE`, o un evento
   `MilestoneDisputed` que el frontend refleje.
-- **M2 — El `metadataURI` no está comprometido a ningún hash.** Si el founder mintea con una URL `https://`
+- **M2 — ✅ RESUELTO (DECISIONS 38, pendiente redeploy).** ~~El `metadataURI` no está comprometido a ningún hash.~~ Si el founder mintea con una URL `https://`
   mutable, puede cambiar el JSON (nombre, equipo, claims) después de que un financiador lo revisó, sin
   dejar rastro onchain. Ataca directamente la tesis del producto.
   *Fix sugerido:* exigir prefijo `ipfs://`, o guardar un `bytes32 metadataHash` junto al URI.

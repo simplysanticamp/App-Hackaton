@@ -16,6 +16,9 @@ contract ProjectPassport is ERC721URIStorage, Ownable {
     error NotAuthorizedMinter();
     /// @notice El `metadataURI` está vacío.
     error EmptyMetadataURI();
+    /// @notice El `metadataURI` no es `ipfs://<cid>`: una URL mutable permitiría cambiar la metadata después
+    ///         de que un financiador la revisó, sin dejar rastro onchain.
+    error MetadataURINotIPFS();
     /// @notice Se pasó `address(0)` donde se requiere una dirección válida.
     error ZeroAddress();
 
@@ -38,12 +41,16 @@ contract ProjectPassport is ERC721URIStorage, Ownable {
     ///      onchain. Se usa `_mint` y no `_safeMint` a propósito: el token no se puede transferir, así que
     ///      no importa si el destinatario implementa `onERC721Received`.
     /// @param founder Dirección que será dueña del passport.
-    /// @param metadataURI URI (IPFS/HTTPS) del JSON de metadata; no puede estar vacío.
+    /// @param metadataURI `ipfs://<cid>` del JSON de metadata. Debe ser IPFS: el CID es el hash del contenido,
+    ///        así que el JSON que revisó un financiador no puede cambiar sin cambiar el URI (y el URI queda
+    ///        fijado onchain al mintear). Con `https://` el founder podría reescribir nombre, equipo o claims
+    ///        después, sin rastro.
     /// @return tokenId Id secuencial del passport minteado (empieza en 1).
     function mintPassport(address founder, string calldata metadataURI) external returns (uint256 tokenId) {
         if (founder == address(0)) revert ZeroAddress();
         if (msg.sender != founder && msg.sender != owner()) revert NotAuthorizedMinter();
         if (bytes(metadataURI).length == 0) revert EmptyMetadataURI();
+        if (!_isIpfsURI(bytes(metadataURI))) revert MetadataURINotIPFS();
 
         // Effects antes de la interacción (_safeMint no se usa: el founder no necesita ser receptor).
         tokenId = ++totalSupply;
@@ -53,6 +60,17 @@ contract ProjectPassport is ERC721URIStorage, Ownable {
 
         emit Locked(tokenId);
         emit PassportMinted(tokenId, founder, metadataURI);
+    }
+
+    /// @dev `true` si el URI empieza por `ipfs://` y tiene al menos un carácter después. No valida que el CID
+    ///      sea bien formado (eso es offchain): el objetivo es descartar esquemas mutables (https, ipns).
+    function _isIpfsURI(bytes memory uri) private pure returns (bool) {
+        bytes memory prefix = "ipfs://";
+        if (uri.length <= prefix.length) return false;
+        for (uint256 i = 0; i < prefix.length; i++) {
+            if (uri[i] != prefix[i]) return false;
+        }
+        return true;
     }
 
     /// @notice ERC-5192: indica si el token está bloqueado. Siempre `true`.

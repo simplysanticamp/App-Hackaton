@@ -134,3 +134,13 @@ direcciones correctas, y el daño solo aparece si alguien lee el estado onchain.
     Es deliberado para el hackathon (una sola wallet con fondos) y el script avisa por consola. El founder
     va a ser otra wallet, así que la separación de funciones en la verificación (decisión 26) se sostiene.
     Queda como riesgo a mencionar en el pitch.
+37. **M1 resuelto: `revokeVerification(tokenId, milestoneId)` para `VALIDATOR_ROLE`.** La revocación no borra
+    `verifiedAt`; agrega `revokedAt` al struct (campo nuevo, ABI cambia) y emite `VerificationRevoked`. Un hito
+    cuenta como verificado solo si `verifiedAt != 0 && revokedAt == 0`. Es definitiva: no se re-verifica el
+    mismo hito (un hito corregido se registra como hito nuevo), coherente con "registros inmutables". Solo
+    un hito verificado se puede revocar; cualquier validator puede hacerlo, el founder no.
+38. **M2 resuelto con prefijo `ipfs://` obligatorio en `mintPassport`, no con `bytes32 metadataHash`.**
+    Mantiene la firma `mintPassport(address, string)` del spec y el CID ya es el hash del contenido. Rechaza
+    `https://`, `http://`, `ipns://` (mutable) y `ipfs://` vacío con `MetadataURINotIPFS`. No valida que el
+    CID esté bien formado: eso es offchain. **Estas dos correcciones cambian bytecode: los contratos de
+    `deployments/133.json` quedan obsoletos y hay que redesplegar.**

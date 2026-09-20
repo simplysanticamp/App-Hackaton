@@ -7,7 +7,7 @@ const passportAbi = parseAbi([
 ]);
 
 const milestonesAbi = parseAbi([
-  "struct Milestone { string description; bytes32 evidenceHash; uint64 createdAt; uint64 verifiedAt; address author; }",
+  "struct Milestone { string description; bytes32 evidenceHash; uint64 createdAt; uint64 verifiedAt; uint64 revokedAt; address author; }",
   "function milestoneCount(uint256 tokenId) view returns (uint256)",
   "function getMilestone(uint256 tokenId, uint256 milestoneId) view returns (Milestone)",
 ]);
@@ -33,6 +33,9 @@ export type PassportReport = {
     createdAt: number;
     verified: boolean;
     verifiedAt: number | null;
+    /** true si un validator revocó la verificación. `verified` ya es false en ese caso. */
+    revoked: boolean;
+    revokedAt: number | null;
     /** Quién registró el hito: el founder o un validator. No siempre es el dueño del passport. */
     author: Address;
   }[];
@@ -77,8 +80,10 @@ export async function getPassportReport(tokenId: bigint): Promise<PassportReport
       description: m.description,
       evidenceHash: m.evidenceHash,
       createdAt: Number(m.createdAt),
-      verified: m.verifiedAt !== 0n,
+      verified: m.verifiedAt !== 0n && m.revokedAt === 0n,
       verifiedAt: m.verifiedAt !== 0n ? Number(m.verifiedAt) : null,
+      revoked: m.revokedAt !== 0n,
+      revokedAt: m.revokedAt !== 0n ? Number(m.revokedAt) : null,
       author: m.author,
     })),
   };

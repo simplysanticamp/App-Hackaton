@@ -73,6 +73,23 @@ contract BootstrapTest is Test {
         passport.mintPassport(founder, "");
     }
 
+    /// @dev M2: una URL mutable permitiría cambiar la metadata tras la revisión de un financiador.
+    function test_RevertWhen_MetadataURIIsNotIPFS() public {
+        string[6] memory bad = [
+            "https://example.com/meta.json",
+            "http://example.com/meta.json",
+            "ipns://k51qzi5uqu5d",
+            "ipfs://",
+            "IPFS://bafy",
+            "bafybeigdyrzt"
+        ];
+        for (uint256 i = 0; i < bad.length; i++) {
+            vm.prank(founder);
+            vm.expectRevert(ProjectPassport.MetadataURINotIPFS.selector);
+            passport.mintPassport(founder, bad[i]);
+        }
+    }
+
     function test_RevertWhen_MintToZero() public {
         vm.prank(admin);
         vm.expectRevert(ProjectPassport.ZeroAddress.selector);
@@ -322,6 +339,74 @@ contract BootstrapTest is Test {
         new Milestones(other, validator, admin);
         vm.expectRevert(FundingRegistry.NotAContract.selector);
         new FundingRegistry(other, admin);
+    }
+
+    // ---------- M1: revocación ----------
+
+    function _mintAndVerify() internal returns (uint256 id) {
+        id = _mint();
+        vm.prank(founder);
+        milestones.addMilestone(id, "MVP", HASH);
+        vm.prank(validator);
+        milestones.verifyMilestone(id, 0);
+    }
+
+    function test_RevokeVerification() public {
+        uint256 id = _mintAndVerify();
+        uint64 verifiedAt = milestones.getMilestone(id, 0).verifiedAt;
+
+        vm.warp(block.timestamp + 1 days);
+        vm.expectEmit(true, true, true, false);
+        emit Milestones.VerificationRevoked(id, 0, validator);
+        vm.prank(validator);
+        milestones.revokeVerification(id, 0);
+
+        Milestones.Milestone memory m = milestones.getMilestone(id, 0);
+        assertEq(m.revokedAt, block.timestamp);
+        assertEq(m.verifiedAt, verifiedAt, "la verificacion original queda como rastro");
+    }
+
+    function test_RevertWhen_RevokeUnverifiedOrTwiceOrMissing() public {
+        uint256 id = _mint();
+        vm.prank(founder);
+        milestones.addMilestone(id, "MVP", HASH);
+
+        vm.startPrank(validator);
+        vm.expectRevert(Milestones.NotVerified.selector);
+        milestones.revokeVerification(id, 0);
+        vm.expectRevert(Milestones.MilestoneNotFound.selector);
+        milestones.revokeVerification(id, 5);
+
+        milestones.verifyMilestone(id, 0);
+        milestones.revokeVerification(id, 0);
+        vm.expectRevert(Milestones.AlreadyRevoked.selector);
+        milestones.revokeVerification(id, 0);
+        vm.stopPrank();
+    }
+
+    /// @dev La revocación es definitiva: no se puede volver a verificar el mismo hito.
+    function test_RevertWhen_ReverifyRevokedMilestone() public {
+        uint256 id = _mintAndVerify();
+        vm.startPrank(validator);
+        milestones.revokeVerification(id, 0);
+        vm.expectRevert(Milestones.AlreadyVerified.selector);
+        milestones.verifyMilestone(id, 0);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_NonValidatorRevokes() public {
+        uint256 id = _mintAndVerify();
+        vm.prank(founder); // ni el dueño del passport puede invalidar una verificacion
+        vm.expectRevert(_unauthorized(founder, validatorRole));
+        milestones.revokeVerification(id, 0);
+    }
+
+    function testFuzz_OnlyValidatorRevokes(address caller) public {
+        vm.assume(caller != validator);
+        uint256 id = _mintAndVerify();
+        vm.prank(caller);
+        vm.expectRevert(_unauthorized(caller, validatorRole));
+        milestones.revokeVerification(id, 0);
     }
 
     function testFuzz_OnlyValidatorVerifies(address caller) public {

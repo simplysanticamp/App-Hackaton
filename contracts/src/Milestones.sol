@@ -21,10 +21,14 @@ contract Milestones is AccessControl {
     error EmptyEvidenceHash();
     /// @notice No existe un hito con ese `milestoneId` para ese `tokenId`.
     error MilestoneNotFound();
-    /// @notice El hito ya fue verificado; la verificación no se repite ni se revierte.
+    /// @notice El hito ya fue verificado; la verificación no se repite (para invalidarla, `revokeVerification`).
     error AlreadyVerified();
     /// @notice Un validator no puede verificar un hito que él mismo registró.
     error SelfVerification();
+    /// @notice Solo se puede revocar la verificación de un hito que está verificado.
+    error NotVerified();
+    /// @notice La verificación de este hito ya fue revocada; la revocación es definitiva.
+    error AlreadyRevoked();
     /// @notice La dirección pasada como Passport no tiene código (no es un contrato).
     error NotAContract();
     /// @notice Se pasó `address(0)` donde se requiere una dirección válida.
@@ -41,6 +45,9 @@ contract Milestones is AccessControl {
     /// @param evidenceHash keccak256 del archivo de evidencia, calculado offchain.
     /// @param createdAt Timestamp del bloque en que se registró.
     /// @param verifiedAt Timestamp de la verificación; `0` significa sin verificar.
+    /// @param revokedAt Timestamp en que un validator revocó la verificación; `0` significa no revocada.
+    ///        Un hito cuenta como verificado solo si `verifiedAt != 0 && revokedAt == 0`. La verificación
+    ///        original NO se borra: queda como rastro auditable de que existió y luego se invalidó.
     /// @param author Quién registró el hito: el dueño del passport o un `VALIDATOR_ROLE`. Va en storage y
     ///        no solo en el evento, para que quien lea el historial sepa de quién es cada declaración sin
     ///        tener que reconstruir logs.
@@ -49,6 +56,7 @@ contract Milestones is AccessControl {
         bytes32 evidenceHash;
         uint64 createdAt;
         uint64 verifiedAt;
+        uint64 revokedAt;
         address author;
     }
 
@@ -67,6 +75,8 @@ contract Milestones is AccessControl {
     );
     /// @notice Emitido cuando un validator marca un hito como verificado.
     event MilestoneVerified(uint256 indexed tokenId, uint256 indexed milestoneId, address indexed validator);
+    /// @notice Emitido cuando un validator revoca la verificación de un hito.
+    event VerificationRevoked(uint256 indexed tokenId, uint256 indexed milestoneId, address indexed validator);
 
     /// @notice Despliega el registro de hitos apuntando a un ProjectPassport ya desplegado.
     /// @param passport_ Dirección del ProjectPassport.
@@ -109,6 +119,7 @@ contract Milestones is AccessControl {
                 // forge-lint: disable-next-line(unsafe-typecast)
                 createdAt: uint64(block.timestamp),
                 verifiedAt: 0,
+                revokedAt: 0,
                 author: msg.sender
             })
         );
@@ -135,6 +146,24 @@ contract Milestones is AccessControl {
         // forge-lint: disable-next-line(unsafe-typecast)
         m.verifiedAt = uint64(block.timestamp);
         emit MilestoneVerified(tokenId, milestoneId, msg.sender);
+    }
+
+    /// @notice Revoca la verificación de un hito. Exclusivo de `VALIDATOR_ROLE`.
+    /// @dev Sin revocación, una verificación errónea o fraudulenta sería permanente y el sistema no sería
+    ///      auditable. La revocación es definitiva y no borra `verifiedAt`: el historial conserva que el hito
+    ///      fue verificado y luego invalidado. Un hito corregido se registra como hito nuevo. Cualquier
+    ///      validator puede revocar, incluido el que verificó (retractarse) o el autor del hito.
+    /// @param tokenId Id del Project Passport.
+    /// @param milestoneId Índice del hito dentro del historial de ese tokenId.
+    function revokeVerification(uint256 tokenId, uint256 milestoneId) external onlyRole(VALIDATOR_ROLE) {
+        if (milestoneId >= _milestones[tokenId].length) revert MilestoneNotFound();
+        Milestone storage m = _milestones[tokenId][milestoneId];
+        if (m.verifiedAt == 0) revert NotVerified();
+        if (m.revokedAt != 0) revert AlreadyRevoked();
+
+        // forge-lint: disable-next-line(unsafe-typecast)
+        m.revokedAt = uint64(block.timestamp);
+        emit VerificationRevoked(tokenId, milestoneId, msg.sender);
     }
 
     /// @notice Cantidad de hitos registrados para un passport.
