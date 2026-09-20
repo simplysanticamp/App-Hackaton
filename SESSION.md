@@ -48,7 +48,8 @@ marcadas `NO USAR`.
 - El frontend nunca toca el LLM: todo por `/api/agent`.
 
 ## Próximos pasos
-1. Verificar los 3 contratos en Blockscout (bloqueado: falta URL del explorer + API key).
+1. Verificar los 3 contratos en Blockscout. **Bloqueado**: `testnet-explorer.hsk.xyz` no resuelve en
+   ningún resolver; hay que confirmar la URL real con los organizadores. Detalle en `BLOCKERS.md` §1.
 2. Exportar ABIs al front e integrar `FundingRegistry`, que todavía no está conectado y ya tiene lecturas
    útiles para el dashboard (`getApplications`, `getAllFundingReceived`).
 3. Probar el pipeline del agente con `ANTHROPIC_API_KEY` real (hoy solo probado con LLM simulado).
@@ -59,7 +60,7 @@ marcadas `NO USAR`.
    Ownable2Step, `.gitignore` con `!.env.example`, slither y tope de gasto en Anthropic antes de mainnet.
 
 ## Bloqueos / pendientes del usuario
-- Deadline real. URL del **explorer de HSK** + API key de Blockscout (única pieza que falta para el paso 1).
+- Deadline real. URL real del **explorer de HSK testnet**: la del doc del hackathon no resuelve (§1).
 - `ANTHROPIC_API_KEY` en `web/.env.local`.
 - Wallet del agente para x402: fondos mínimos en Base Sepolia.
 - Crear a mano (mis permisos bloquean esas rutas) `contracts/.env.example` y actualizar `web/.env.example`.

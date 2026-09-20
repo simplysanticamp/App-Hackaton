@@ -1,43 +1,45 @@
 # BLOCKERS
 
-Sesión del 2026-09-19. **Ningún paso del work order quedó bloqueado**: (a)-(f) están completos y en verde.
-Lo que sigue son cosas que no puedo resolver yo, ordenadas por urgencia.
+Actualizado 2026-09-20. Los contratos **ya están desplegados** en HSK testnet 133 (§1 resuelto: el RPC
+`https://testnet.hsk.xyz` funciona). Lo que sigue son cosas que no puedo resolver yo, por urgencia.
 
 ---
 
-## 1. No se puede desplegar: falta el RPC de HSK Chain
+## 1. No se puede verificar en Blockscout: el dominio del explorer no resuelve
 
-**Bloqueante para la demo.**
+**No bloquea la demo** — los contratos funcionan igual, solo no se ve el código fuente en el explorer. La
+verificación se puede hacer en cualquier momento después del deploy, sin redesplegar nada.
 
-`foundry.toml` ya lee `${HSK_TESTNET_RPC}` y `${HSK_MAINNET_RPC}`, y los scripts leen `VALIDATOR`, `OWNER`
-y `ADMIN` del entorno. No hay nada más que codear: falta el dato.
+La URL del doc del hackathon, `https://testnet-explorer.hsk.xyz`, **no tiene registro A/AAAA**. Comprobado
+el 2026-09-20 contra tres resolvers (el del sistema, `1.1.1.1` y `8.8.8.8`): ninguno devuelve IP, solo el
+SOA de `hsk.xyz`. No es un problema de red local — `testnet.hsk.xyz` (el RPC de la misma testnet) resuelve
+y responde desde esta máquina.
 
-Lo que necesito de ti, en `contracts/.env`:
+Lo que sí averigüé, para no repetir el trabajo:
 
-- `HSK_TESTNET_RPC` — URL del RPC de HSK Chain testnet (chain id 133).
-- `HSK_TESTNET_EXPLORER` — URL del Blockscout de HSK, para `forge verify-contract`.
-- `VALIDATOR` — dirección que verificará hitos en la demo.
-- `ADMIN` (opcional pero recomendado) — dirección distinta de `OWNER` y `VALIDATOR` que tendrá
-  `DEFAULT_ADMIN_ROLE`. Si las tres comparten clave, quien la filtre puede fabricar un historial
-  "verificado" de cero. El script avisa por consola si detecta que las comparten.
+- **`explorer.hsk.xyz` existe** y es un Blockscout v11.3.0, pero es el de **mainnet (177)**: desconoce
+  nuestro `ProjectPassport` (`is_contract: false`, balance 0) y va por el bloque 27.784.554 mientras la
+  testnet está en 33.367.487.
+- **`hashkeychain-testnet-explorer.alt.technology`** (la URL que citan chainlist y los docs de HashKey)
+  tampoco resuelve.
+- El **registro de chains de Blockscout** solo conoce HashKey mainnet (177), no la testnet 133.
+- Una búsqueda web sigue indexando `testnet-explorer.hsk.xyz` como el Blockscout de la testnet, así que el
+  nombre probablemente sea el correcto y el dominio esté caído o movido.
 
-**La clave privada NO va en el `.env`.** Los scripts usan `vm.startBroadcast()` sin argumentos, así que el
-firmante sale del keystore que pases por CLI. Importalo una sola vez:
+**Acción pendiente (del usuario):** confirmar la URL con los organizadores del hackathon. Una vez
+confirmada, la verificación son tres comandos — direcciones y argumentos de constructor están en
+`deployments/133.json`:
 
-```powershell
-cast wallet import bootstrap-deployer --interactive   # pide la clave privada y una contraseña
-cast wallet address --account bootstrap-deployer      # confirma qué dirección quedó
+```bash
+forge verify-contract 0x4aD904AD0a718e0bd61BF0006169e493D176Db88 src/ProjectPassport.sol:ProjectPassport \
+  --verifier blockscout --verifier-url <explorer>/api --chain-id 133 \
+  --constructor-args $(cast abi-encode "constructor(address)" 0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe)
+# Milestones:      constructor(address,address,address) = passport, validator, admin
+# FundingRegistry: constructor(address,address)         = passport, admin
 ```
 
-y después, en cada deploy, `--account bootstrap-deployer`. Necesita fondos de testnet.
-
-**Diagnóstico:** no es un fallo, es un dato que no existe en el repo. Verificado que el deploy funciona
-simulándolo en local (`test_DeployScriptWiresContracts` en `contracts/test/Integration.t.sol` corre el
-script combinado y comprueba el cableado y los roles). En cuanto pongas el RPC, el deploy es un comando.
-
-**Riesgo asociado:** tampoco está confirmado qué hardforks soporta HSK Chain. Por eso `foundry.toml` usa
-`evm_version = "paris"`, que evita `PUSH0` y `MCOPY`. Si el primer deploy revierte sin razón aparente,
-mirá ahí primero.
+**Riesgo asociado (ya descartado en la práctica):** no estaba confirmado qué hardforks soporta HSK Chain,
+por eso `foundry.toml` usa `evm_version = "paris"`. El deploy pasó sin problemas con esa config.
 
 ---
 
