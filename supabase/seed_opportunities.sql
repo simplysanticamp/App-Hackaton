@@ -25,6 +25,39 @@ insert into opportunities (id, name, funder, type, region, focus, eligibility_su
   'Aceleradora sin equity con cuatro programas según etapa: Exploración (founders con MVP o primeras ventas; beneficios por $35,000), Aceleración (pre-seed con ingresos, trabajando en product-market fit; perks por $150,000+), Grow & Scale (seed con ingresos mensuales >$20,000, financiación >$750,000 o proyección de ARR >$400,000; beneficios por $180,000+) e Internacionalización (expansión a México, Colombia, Argentina, Chile, Perú, Estados Unidos o Brasil; perks por $40,000+). Son beneficios, no capital directo; el sitio no indica la moneda. Inicios en octubre de 2026 y postulaciones tardías abiertas.',
   'https://emprelatam.com/aplica',
   false
+),
+(
+  'lan-accelerator-v5',
+  'LAN Accelerator V5',
+  'LAN Accelerator',
+  'aceleradora',
+  'Latinoamérica (startups con base en LatAm o con al menos un founder de nacionalidad latina)',
+  'Empresas de base tecnológica de cualquier sector, excepto alcohol, apuestas, armas, bienes raíces, criptomonedas y monedas digitales, y sustancias controladas.',
+  'Exige: operar en Latinoamérica o planear hacerlo pronto, estar en validación de mercado con ventas o usuarios activos, al menos una persona del equipo con inglés avanzado y al menos un founder técnico. No acepta startups en ideación o prototipo. El costo del programa es USD 15,000, cubierto mediante un SAFE a la valuación actual; las 3 mejores startups pueden recibir una inversión de USD 25,000 a 50,000 en efectivo; se cubre alojamiento para un founder en Chile y un voucher de vuelo. Postulaciones hasta el 28 de septiembre de 2026; fase online del 12 de octubre al 6 de noviembre y fase presencial en Chile del 9 al 21 de noviembre de 2026.',
+  'https://lanaccelerator.com/aplica',
+  false
+),
+(
+  'powertrain-ignition-viii',
+  'IGNITION (Batch VIII)',
+  'Powertrain Ventures',
+  'aceleradora',
+  'Latinoamérica',
+  'Startups B2B que resuelven problemas de alto impacto en industrias tradicionales, con estrategias impulsadas por IA.',
+  'Aceleradora libre de equity. Exige: modelo de negocio escalable de forma exponencial, preferiblemente basado en software; dos o más cofounders a tiempo completo, al menos uno técnico; experiencia significativa en la industria; empresa legalmente constituida y con dedicación total; producto existente (MVP) obligatorio para ingresar y tracción inicial. Ofrece acceso a un equipo de expertos, conexión con fondos de venture capital y ángeles regionales y globales, y una red de más de 1,000 founders e inversionistas; 10 sesiones semanales online y Demo Day virtual. Cierre de postulaciones: miércoles 30 de septiembre (la página no indica el año); el lote empieza el 13 de octubre de 2026.',
+  'https://powertrain-ventures.com/es/programas/aceleradora/',
+  false
+),
+(
+  'monad-blitz-medellin-v2',
+  'Monad Blitz Medellín V2',
+  'Medellín Blockchain Community y Monad Foundation',
+  'hackathon',
+  'Medellín, Colombia (presencial)',
+  'Blockchain y desarrollo web3 sobre la blockchain Monad.',
+  'Hackathon de un día, el 26 de septiembre de 2026, de 9:00 a. m. a 11:00 p. m., en Indie Universe (Laureles, Medellín). Entrada gratuita. Se forma equipo, se define la idea y se construye desde cero para presentar ante jueces al final del día. Premios, requisitos y región de elegibilidad: no especificados en la página. El registro se hace en Luma desde el botón "Ir a página oficial"; el link de abajo es el listado del evento en Netwoo.',
+  'https://netwoo.co/eventos/monad-blitz-medellin-v2',
+  false
 )
 on conflict (id) do update set
   name = excluded.name,
@@ -54,6 +87,20 @@ on conflict (id) do update set
 --   Migrantes venezolanos, retornados y comunidades de acogida con unidad productiva de mínimo 6 meses y
 --   ventas documentadas; Arauca, Casanare, Meta, Boyacá, Bogotá, Cundinamarca, Santander y Norte de
 --   Santander. Cerró el 27 de febrero de 2026.
+--
+-- masschallenge-security-resiliency-2026  https://masschallenge.org/security-and-resiliency-traction-2026/
+--   Aceleradora sin costo ni equity, Pre-Seed a Serie A+, sectores de seguridad y resiliencia; la empresa
+--   debe poder viajar a EE. UU. Postulaciones del 11 de junio al 9 de julio (la página no indica el año).
+--   Cerrada. Kick-off en septiembre en Boston.
+--
+-- caribe-ia-2026  https://caribe-ia.com/
+--   Fundación Código Abierto + Caribe Ventures, Caribe colombiano, IA. El hackathon fue del 22 al 24 de
+--   mayo de 2026 (terminado; premios "+$20M COP"). La aceleración va de junio a septiembre de 2026 y el
+--   Demo Day es en octubre; la página NO indica si la aceleración sigue recibiendo postulaciones ni hasta
+--   cuándo. Confirmar en /aceleracion antes de cargarla.
+--
+-- colombiahackathons.com  (directorio, no una convocatoria)
+--   Lista hackathones de Colombia sin premios ni requisitos. Cada evento se cura por separado si interesa.
 --
 -- whale-tank-2026 (Parquetec)  https://gust.com/programs/whale-tank-2026-powered-by-parquetec
 --   No se pudo leer: Gust respondió 403. Falta el texto de la página para poder curarla.
