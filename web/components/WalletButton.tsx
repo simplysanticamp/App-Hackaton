@@ -29,7 +29,10 @@ export function WalletButton() {
       <button
         className="btn btn-quiet"
         disabled={isPending || !connectors.length}
-        onClick={() => connect({ connector: connectors[0] })}
+        // Se prefiere la billetera descubierta por EIP-6963 (MetaMask se anuncia sola) sobre el conector
+        // genérico `injected`, que depende de `window.ethereum` y falla con "Provider not found" si otra
+        // extensión lo ocupa o no lo inyecta.
+        onClick={() => connect({ connector: connectors.find((c) => c.id !== "injected") ?? connectors[0] })}
       >
         {isPending ? "Esperando a tu billetera…" : "Conectar billetera"}
       </button>

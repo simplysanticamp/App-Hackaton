@@ -104,7 +104,7 @@ export default function ReportPage({ params }: PageProps<"/passport/[id]/reporte
           {!unavailable && !isConnected && (
             <div className="flex flex-wrap items-center gap-4">
               <p className="text-muted">Conecta la billetera con la que vas a pagar.</p>
-              <button className="btn" disabled={connecting || !connectors.length} onClick={() => connect({ connector: connectors[0] })}>
+              <button className="btn" disabled={connecting || !connectors.length} onClick={() => connect({ connector: connectors.find((c) => c.id !== "injected") ?? connectors[0] })}>
                 {connecting ? "Esperando a tu billetera…" : "Conectar billetera"}
               </button>
             </div>

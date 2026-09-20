@@ -4,7 +4,7 @@ import { runMatching, runPitch, runResearch } from "@/lib/agent/pipeline";
 import { AgentError } from "@/lib/agent/types";
 import { acquireSlot, checkAgentLimits, clientIp, releaseSlot } from "@/lib/rate-limit";
 
-export const maxDuration = 60;
+export const maxDuration = 300; // el pipeline completo tarda ~80 s; Hobby con Fluid Compute permite hasta 300
 
 const encoder = new TextEncoder();
 const send = (obj: unknown) => encoder.encode(JSON.stringify(obj) + "\n");

@@ -20,6 +20,18 @@ function textOf(content: Anthropic.ContentBlock[]) {
     .trim();
 }
 
+/**
+ * Texto de la respuesta FINAL de una búsqueda: solo lo que va después de la última búsqueda web.
+ * El modelo escribe comentarios sueltos entre búsquedas ("Necesito parsear…") que no son parte del research.
+ */
+function finalTextOf(content: Anthropic.ContentBlock[]) {
+  let lastTool = -1;
+  content.forEach((b, i) => {
+    if (b.type === "server_tool_use" || b.type === "web_search_tool_result") lastTool = i;
+  });
+  return textOf(content.slice(lastTool + 1)) || textOf(content);
+}
+
 /** Llamada con salida JSON validada contra un schema zod. */
 export async function generateJson<T>(opts: {
   system: string;
@@ -78,7 +90,7 @@ export async function researchWithSearch(opts: {
         }
       }
     }
-    text = textOf(res.content) || text;
+    text = finalTextOf(res.content) || text;
 
     if (res.stop_reason !== "pause_turn") break;
     messages.push({ role: "assistant", content: res.content });
