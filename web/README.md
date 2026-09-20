@@ -1,57 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bootstrap: frontend y agente
 
-## Getting Started
+Next.js + wagmi/viem. El agente corre en rutas serverless (`/api/agent`); el frontend nunca llama al LLM.
 
-First, run the development server:
+## Correrlo en tu computador
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```powershell
+cd web
+npm install
+# crea web/.env.local con las variables de abajo (este archivo NO se sube a git)
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sin ninguna variable, la sección **/demo** funciona con datos de ejemplo. Para el flujo real necesitas `.env.local`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Variables de entorno (`web/.env.local`)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Cada persona crea su propio `.env.local`. Nunca se commitea. Hay dos tipos:
 
-## Learn More
+**Se pueden compartir entre el equipo (por un canal privado)**: no son secretas.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## Deploy en Vercel
-
-1. Importar el repo en Vercel con **Root Directory = `web`** (framework Next.js, se detecta solo).
-2. Variables de entorno (Project Settings → Environment Variables):
-
-| Variable | Expuesta al navegador | Para qué |
+| Variable | Qué es | Dónde se obtiene |
 |---|---|---|
-| `NEXT_PUBLIC_PASSPORT_ADDRESS` | sí | ProjectPassport en HSK 133 |
-| `NEXT_PUBLIC_MILESTONES_ADDRESS` | sí | Milestones |
-| `NEXT_PUBLIC_FUNDING_REGISTRY_ADDRESS` | sí | FundingRegistry (opcional) |
-| `NEXT_PUBLIC_HSK_TESTNET_RPC` | sí | RPC (por defecto `https://testnet.hsk.xyz`) |
-| `NEXT_PUBLIC_HSK_TESTNET_EXPLORER` | sí | Explorer, para links a tx (opcional) |
-| `ANTHROPIC_API_KEY` | **no** | `/api/agent` |
-| `PASSPORT_ADDRESS`, `MILESTONES_ADDRESS` | no | lecturas de `/api/report/[tokenId]` |
-| `PINATA_JWT` | **no** | `/api/pin`: sube la metadata del Passport a IPFS |
-| `X402_PAY_TO` | no | payee del reporte (x402, Base Sepolia) |
-| Supabase (URL + clave publicable) | ver `.env.example` | convocatorias |
+| `SUPABASE_URL` | URL del proyecto, **solo el dominio** (`https://xxxx.supabase.co`, sin `/rest/v1/`) | Supabase → Project Settings → API → Project URL |
+| `SUPABASE_PUBLISHABLE_KEY` | Clave publicable (`sb_publishable_…`), solo lectura por RLS | Supabase → Project Settings → API |
+| `NEXT_PUBLIC_HSK_TESTNET_RPC` | RPC de HSK testnet (133) | `https://testnet.hsk.xyz` |
+| `NEXT_PUBLIC_PASSPORT_ADDRESS`, `NEXT_PUBLIC_MILESTONES_ADDRESS`, `NEXT_PUBLIC_FUNDING_REGISTRY_ADDRESS` | Contratos desplegados (front) | `deployments/133.json` |
+| `PASSPORT_ADDRESS`, `MILESTONES_ADDRESS` | Los mismos contratos, para las rutas del servidor | `deployments/133.json` |
+| `X402_PAY_TO` | Dirección pública que **cobra** los pagos x402 | Wallet de cobro (MetaMask) |
+| `AGENT_ALLOWED_PAYEES` | Direcciones a las que el agente puede pagar; incluye `X402_PAY_TO` | La misma dirección |
+| `PREMIUM_SOURCE_URL` | Fuente premium que paga el agente | `http://localhost:3000/api/premium/market` |
 
-Las direcciones `NEXT_PUBLIC_*` se inlinean en el build: tras cambiarlas hay que **redesplegar**.
-`/api/agent` declara `maxDuration = 60`; el plan Hobby puede recortarlo.
+**Personales y SECRETAS**: cada quien las suyas, nunca por chat ni git.
+
+| Variable | Qué es | Dónde se obtiene |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Clave del LLM. Pon un tope de gasto | console.anthropic.com → API Keys |
+| `PINATA_JWT` | Sube la metadata del Passport a IPFS | app.pinata.cloud → API Keys (JWT) |
+| `AGENT_WALLET_PRIVATE_KEY` | Clave de la wallet que paga por x402 (`0x` + 64 hex). Solo testnet, con USDC de prueba de Base Sepolia | Wallet nueva en MetaMask; no la del cobro |
+
+Opcionales: `AGENT_MAX_PER_TX_USD`, `AGENT_MAX_PER_DAY_USD`, `X402_PREMIUM_PRICE`, `X402_REPORT_PRICE`, `LLM_MODEL`,
+`NEXT_PUBLIC_HSK_TESTNET_EXPLORER` (sin explorer confirmado, los enlaces onchain se ocultan).
+
+## Comprobar la configuración (no imprimen claves)
+
+```powershell
+node --env-file=.env.local scripts/check-supabase.mjs       # Supabase y convocatorias
+node --env-file=.env.local scripts/check-pinata.mjs         # PINATA_JWT
+node --env-file=.env.local scripts/check-agent-wallet.mjs   # wallet x402 y saldo USDC
+node --env-file=.env.local scripts/test-x402-payment.mjs    # pago real de 0.005 USDC (con `npm run dev` corriendo)
+```
+
+Reglas: el agente nunca firma transacciones onchain; la clave privada del agente es solo de testnet.
+Si algo falla con `ENOTFOUND`, es el DNS de tu red: reintenta o cambia a `1.1.1.1` / `8.8.8.8`.
