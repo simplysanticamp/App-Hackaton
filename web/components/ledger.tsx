@@ -10,7 +10,7 @@ export function Status({ verified, revoked }: { verified: boolean; revoked: bool
         <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M2 7.5 5.5 11 12 3" />
         </svg>
-        Verificado
+        Verificado por un validador
       </span>
     );
   }
@@ -20,7 +20,7 @@ export function Status({ verified, revoked }: { verified: boolean; revoked: bool
         <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M3 3l8 8M11 3l-8 8" />
         </svg>
-        Verificación revocada
+        Verificación anulada
       </span>
     );
   }
@@ -29,7 +29,7 @@ export function Status({ verified, revoked }: { verified: boolean; revoked: bool
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.5">
         <circle cx="7" cy="7" r="4.5" />
       </svg>
-      Sin verificar
+      Aún sin verificar
     </span>
   );
 }

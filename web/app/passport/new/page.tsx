@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { parseEventLogs } from "viem";
 import { useConnection, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { NetworkGuard } from "@/components/NetworkGuard";
+import { Term } from "@/components/Term";
 import { TxStatus } from "@/components/TxStatus";
 import { passportAbi, passportAddress } from "@/lib/contracts";
 
@@ -57,7 +58,7 @@ function MintForm() {
 
   return (
     <form
-      className="space-y-6"
+      className="card space-y-6"
       onSubmit={(e) => {
         e.preventDefault();
         if (canSubmit) void submit();
@@ -87,7 +88,7 @@ function MintForm() {
               className="field"
               rows={4}
               maxLength={1000}
-              placeholder="Mínimo 10 caracteres"
+              placeholder="Cuenta en pocas frases de qué trata (mínimo 10 caracteres)"
               value={meta.description}
               onChange={(e) => setMeta({ ...meta, description: e.target.value })}
             />
@@ -106,14 +107,24 @@ function MintForm() {
         </>
       )}
 
-      <ul className="space-y-1 border-t border-rule pt-4 text-[13px] text-muted">
-        <li>Esta información se guarda en IPFS, no onchain. El CID fija el contenido: nadie puede reescribirlo después de que un financiador lo revise. Es pública y permanente.</li>
-        <li>El passport certifica evidencia, no identidad (sin KYC). Es soulbound: no se puede transferir.</li>
-      </ul>
+      <div className="card-sun space-y-2 text-[15px]">
+        <p className="font-bold">Qué pasa cuando lo creas</p>
+        <ol className="list-decimal space-y-1 pl-5">
+          <li>
+            Tu nombre, descripción y categoría se guardan en <Term k="ipfs" />, y quedan públicos y permanentes.
+          </li>
+          <li>
+            Se crea tu <Term k="passport" /> en tu billetera. Es <Term k="soulbound" />: no se puede transferir.
+          </li>
+          <li>
+            Certifica que hay evidencia de tus avances, no quién eres (no hacemos <Term k="kyc" />).
+          </li>
+        </ol>
+      </div>
 
       <div className="flex flex-wrap items-center gap-4">
         <button className="btn" disabled={!canSubmit || busy} type="submit">
-          {pinning ? "Subiendo a IPFS…" : isPending ? "Firma en tu wallet…" : receipt.isLoading ? "Confirmando…" : "Mintear mi passport"}
+          {pinning ? "Guardando tu información…" : isPending ? "Aprueba en tu billetera…" : receipt.isLoading ? "Confirmando…" : "Crear mi pasaporte"}
         </button>
         <button type="button" className="link text-[13px] text-muted" onClick={() => setManual(!manual)}>
           {manual ? "Usar el formulario" : "Ya tengo un ipfs:// propio"}
@@ -136,9 +147,9 @@ export default function NewPassportPage() {
     <main className="mx-auto w-full max-w-5xl px-5 pb-16 pt-10 sm:pt-14">
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-16">
         <div>
-          <h1 className="display text-[38px] sm:text-[46px]">Crear Project Passport</h1>
-          <p className="mt-5 max-w-[42ch] text-muted">
-            El passport es tu registro onchain. Cada hito que agregues queda certificado con el hash de su evidencia.
+          <h1 className="display text-[38px] sm:text-[52px]">Crea el pasaporte de tu proyecto</h1>
+          <p className="mt-5 max-w-[46ch] text-[17px] text-muted">
+            Es el registro público de tu proyecto. Cada avance que sumes queda anotado <Term k="onchain" />, con la <Term k="hash" /> de tu evidencia, para que cualquiera pueda comprobarlo.
           </p>
         </div>
         <NetworkGuard>

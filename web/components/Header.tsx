@@ -3,25 +3,29 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { MascotSvg } from "./Mascot";
 import { WalletButton } from "./WalletButton";
 
 const NAV = [
-  { href: "/", label: "Agente" },
-  { href: "/passport/new", label: "Crear passport" },
+  { href: "/", label: "Empezar" },
+  { href: "/passport/new", label: "Crear pasaporte" },
+  { href: "/glosario", label: "Glosario" },
 ];
 
 export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const [id, setId] = useState("");
+  const validId = /^\d{1,20}$/.test(id);
   return (
-    <header className="border-b" style={{ borderColor: "var(--rule-strong)" }}>
-      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-end gap-x-8 gap-y-3 px-5 pb-3 pt-4">
-        <Link href="/" className="display text-[26px] leading-none">
-          Bootstrap
+    <header className="mx-auto w-full max-w-5xl px-5 pt-4">
+      <div className="card-flat flex flex-wrap items-center gap-x-3 gap-y-2 !px-3 !py-3 sm:gap-x-6 sm:!px-5">
+        <Link href="/" className="flex items-center gap-2">
+          <span className="block h-10 w-8"><MascotSvg /></span>
+          <span className="display text-[22px] sm:text-[24px]">Bootstrap</span>
         </Link>
 
-        <nav className="order-3 flex w-full items-end gap-6 text-sm sm:order-none sm:w-auto" aria-label="Principal">
+        <nav className="order-3 flex w-full items-center gap-1 sm:order-none sm:w-auto sm:gap-2" aria-label="Principal">
           {NAV.map((n) => {
             const active = pathname === n.href;
             return (
@@ -29,7 +33,7 @@ export function Header() {
                 key={n.href}
                 href={n.href}
                 aria-current={active ? "page" : undefined}
-                className={`pb-0.5 ${active ? "border-b-2 border-ink" : "text-muted hover:text-ink"}`}
+                className={`rounded-full px-2.5 py-1 text-[14px] font-semibold sm:px-3 sm:text-[15px] ${active ? "bg-ink text-paper" : "hover:bg-paper-2"}`}
               >
                 {n.label}
               </Link>
@@ -38,25 +42,21 @@ export function Header() {
         </nav>
 
         <form
-          className="order-4 flex items-end gap-2 sm:order-none sm:ml-auto"
+          className="order-4 flex items-center gap-2 sm:order-none sm:ml-auto"
           onSubmit={(e) => {
             e.preventDefault();
-            if (/^\d{1,20}$/.test(id)) router.push(`/passport/${id}`);
+            if (validId) router.push(`/passport/${id}`);
           }}
         >
-          <label className="label whitespace-nowrap" htmlFor="open-passport">
-            Passport Nº
-          </label>
+          <label className="label whitespace-nowrap" htmlFor="open-passport">Buscar pasaporte Nº</label>
           <input
             id="open-passport"
-            className="field mono w-16 !py-0.5 text-center"
+            className="field mono !w-16 !px-2 !py-1 text-center"
             inputMode="numeric"
             value={id}
             onChange={(e) => setId(e.target.value.trim())}
           />
-          <button className="btn btn-quiet" type="submit" disabled={!/^\d{1,20}$/.test(id)}>
-            Abrir
-          </button>
+          <button className="btn btn-quiet" type="submit" disabled={!validId}>Ir</button>
         </form>
 
         <div className="ml-auto sm:ml-0">

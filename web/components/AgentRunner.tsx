@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { Mood } from "./Mascot3D";
+import { Term } from "./Term";
 
 type Source = { title: string; url: string };
 type Opportunity = {
@@ -17,19 +19,19 @@ const safeUrl = (u: string) => (/^https?:\/\//i.test(u) ? u : undefined);
 const usd = (n: number) => `USD ${n.toLocaleString("en-US")}`;
 
 const ERRORS: Record<string, string> = {
-  not_configured: "El agente no está configurado.",
-  refusal: "El modelo rechazó la solicitud.",
-  bad_output: "El modelo devolvió una respuesta inválida. Intenta de nuevo.",
-  upstream: "Falló un servicio externo. Intenta de nuevo.",
+  not_configured: "Boti todavía no está configurado en este servidor.",
+  refusal: "El modelo se negó a responder esa idea. Prueba a reformularla.",
+  bad_output: "Boti se confundió con la respuesta. Intenta de nuevo.",
+  upstream: "Falló un servicio externo. Intenta de nuevo en un momento.",
 };
 
 const STEPS = [
-  { key: "research", n: "01", label: "Research de mercado" },
-  { key: "matching", n: "02", label: "Cruce con convocatorias" },
-  { key: "pitch", n: "03", label: "Borradores por oportunidad" },
+  { key: "research", label: "Investigar el mercado" },
+  { key: "matching", label: "Buscar convocatorias" },
+  { key: "pitch", label: "Escribir borradores" },
 ] as const;
 
-export function AgentRunner() {
+export function AgentRunner({ onMood }: { onMood?: (m: Mood) => void }) {
   const [idea, setIdea] = useState("");
   const [research, setResearch] = useState<Research | null>(null);
   const [matches, setMatches] = useState<Match[] | null>(null);
@@ -38,6 +40,10 @@ export function AgentRunner() {
   const [error, setError] = useState<string | null>(null);
   const loading = stage !== null;
   const started = loading || !!research || !!error;
+
+  useEffect(() => {
+    onMood?.(loading ? "thinking" : drafts ? "happy" : "idle");
+  }, [loading, drafts, onMood]);
 
   async function run() {
     setStage("research");
@@ -83,37 +89,45 @@ export function AgentRunner() {
   const done = { research: !!research, matching: !!matches, pitch: !!drafts };
 
   return (
-    <div className="space-y-12">
-      <section aria-label="Tu idea" className="space-y-3">
-        <label htmlFor="idea" className="label block">Tu idea</label>
+    <div className="space-y-10">
+      <section aria-label="Tu idea" className="card space-y-3">
+        <label htmlFor="idea" className="display block text-[26px]">Cuéntale tu idea a Boti</label>
+        <p className="text-muted">
+          Con tus palabras: qué problema resuelve y para quién. Mientras más claro, mejores convocatorias encuentra.
+        </p>
         <textarea
           id="idea"
           className="field"
           rows={5}
           maxLength={2000}
-          placeholder="Describe tu idea (mínimo 10 caracteres)"
+          placeholder="Ej.: Una app para que pequeños agricultores del Caribe vendan directo a restaurantes…"
           value={idea}
           onChange={(e) => setIdea(e.target.value)}
         />
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="mono text-muted">{idea.length}/2000</span>
+          <span className="mono text-muted">{idea.length}/2000 · mínimo 10 caracteres</span>
           <button className="btn" disabled={loading || idea.trim().length < 10} onClick={run}>
-            {loading ? "Trabajando…" : "Investigar idea"}
+            {loading ? "Boti está investigando…" : "Que Boti investigue"}
           </button>
         </div>
         {error && <p role="alert" className="notice notice-error">{error}</p>}
       </section>
 
       {started && (
-        <ol aria-label="Progreso" className="grid gap-x-6 gap-y-1 border-y border-rule py-3 sm:grid-cols-3">
-          {STEPS.map((s) => {
+        <ol aria-label="Progreso" className="grid gap-3 sm:grid-cols-3">
+          {STEPS.map((s, i) => {
             const isDone = done[s.key];
             const active = stage === s.key;
             return (
-              <li key={s.key} className={`flex items-baseline gap-2 text-[13px] ${isDone || active ? "" : "text-muted"}`}>
-                <span className="mono">{s.n}</span>
-                <span className={active ? "working" : ""}>{s.label}</span>
-                <span className="mono ml-auto text-muted">{isDone ? "listo" : active ? "en curso" : "—"}</span>
+              <li key={s.key} className={`card-flat flex items-center gap-3 !py-3 ${isDone ? "" : active ? "" : "opacity-60"}`}>
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-ink text-[14px] font-bold ${
+                    isDone ? "bg-leaf text-[#26211a]" : active ? "bg-sun text-[#26211a] working" : "bg-paper-2"
+                  }`}
+                >
+                  {isDone ? "✓" : i + 1}
+                </span>
+                <span className="font-semibold">{s.label}</span>
               </li>
             );
           })}
@@ -121,17 +135,14 @@ export function AgentRunner() {
       )}
 
       {research && (
-        <section className="arrive space-y-4">
-          <div className="flex items-baseline gap-3 border-b border-rule pb-2">
-            <span className="mono text-muted">01</span>
-            <h2 className="display text-[26px]">Research</h2>
-          </div>
+        <section className="arrive card space-y-4">
+          <h2 className="display text-[28px]">Lo que encontré de tu mercado</h2>
           <p className="notice">{research.disclaimer}</p>
-          <p className="max-w-[68ch] whitespace-pre-wrap leading-relaxed">{research.summary}</p>
+          <p className="max-w-[70ch] whitespace-pre-wrap">{research.summary}</p>
           {research.sources.length > 0 && (
             <div>
-              <p className="label mb-1">Fuentes consultadas</p>
-              <ul className="space-y-0.5 text-[13px]">
+              <p className="label mb-1">De dónde sale esta información</p>
+              <ul className="list-disc space-y-0.5 pl-5 text-[14.5px]">
                 {research.sources.map((s) => (
                   <li key={s.url}>
                     {safeUrl(s.url) ? (
@@ -148,61 +159,60 @@ export function AgentRunner() {
       )}
 
       {matches && (
-        <section className="arrive space-y-2">
-          <div className="flex items-baseline gap-3 border-b border-rule pb-2">
-            <span className="mono text-muted">02</span>
-            <h2 className="display text-[26px]">Oportunidades</h2>
+        <section className="arrive space-y-4">
+          <div>
+            <h2 className="display text-[28px]">Convocatorias donde podrías aplicar</h2>
+            <p className="text-muted">El &ldquo;encaje&rdquo; es una estimación de Boti, no una garantía. Confirma los requisitos en el link oficial.</p>
           </div>
           {matches.length === 0 && (
-            <p className="py-4 text-muted">Ninguna de las convocatorias disponibles encaja con esta idea.</p>
+            <p className="card-flat text-muted">Ninguna de las convocatorias disponibles encaja con esta idea por ahora.</p>
           )}
-          <ul>
+          <ul className="space-y-5">
             {matches.map((m) => {
               const draft = drafts?.find((d) => d.opportunity_id === m.id);
               const url = safeUrl(m.opportunity.official_url);
               return (
-                <li key={m.id} className="grid grid-cols-[3.75rem_1fr] gap-x-4 border-b border-rule py-5 sm:grid-cols-[5.5rem_1fr]">
-                  <div>
-                    <p className="display text-[40px] leading-none">{m.fit_score}</p>
-                    <p className="label mt-1 !text-[9.5px]">afinidad estimada</p>
+                <li key={m.id} className="card grid gap-x-5 gap-y-3 sm:grid-cols-[7rem_1fr]">
+                  <div className="flex items-center gap-3 sm:flex-col sm:items-start sm:gap-0">
+                    <p className="display text-[52px] leading-none">{m.fit_score}</p>
+                    <p className="label sm:mt-1">de 100<br />encaje estimado</p>
                   </div>
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <h3 className="text-[17px] font-semibold">{m.opportunity.name}</h3>
-                      {m.opportunity.is_demo && <span className="tag tag-demo">demo data</span>}
+                      <h3 className="text-[20px] font-bold">{m.opportunity.name}</h3>
+                      {m.opportunity.is_demo && <span className="tag tag-demo">datos de ejemplo</span>}
                     </div>
-                    <p className="text-[13px] text-muted">
+                    <p className="text-[14.5px] text-muted">
                       {m.opportunity.funder} · {m.opportunity.type} · {m.opportunity.region}
                     </p>
                     <p>{m.rationale}</p>
                     {m.gaps.length > 0 && (
-                      <p className="text-[13px]">
-                        <span className="label mr-2">Faltaría</span>
-                        {m.gaps.join(" · ")}
+                      <p className="rounded-xl bg-paper-2 px-3 py-2 text-[14.5px]">
+                        <strong>Lo que te faltaría:</strong> {m.gaps.join(" · ")}
                       </p>
                     )}
-                    <p className="text-[13px]">
+                    <p className="text-[14.5px]">
                       {url ? (
-                        <a className="link" href={url} target="_blank" rel="noreferrer noopener">Fuente oficial</a>
+                        <a className="link" href={url} target="_blank" rel="noreferrer noopener">Ver la convocatoria oficial</a>
                       ) : (
                         <span className="text-muted">Sin link oficial verificado</span>
                       )}
                     </p>
 
                     {draft ? (
-                      <details className="group mt-3 border-t border-rule pt-3">
-                        <summary className="label flex cursor-pointer list-none items-center gap-2 hover:text-ink">
+                      <details className="group mt-2 rounded-xl border-2 border-ink bg-paper-2 p-3">
+                        <summary className="flex cursor-pointer list-none items-center gap-2 font-bold">
                           <span className="inline-block transition-transform group-open:rotate-90" aria-hidden>▸</span>
-                          Borrador: MVP, presupuesto y pitch
+                          Borrador listo para pulir
                         </summary>
                         <div className="mt-3 space-y-4">
                           <div>
-                            <p className="label mb-1">MVP</p>
+                            <p className="label mb-1">Tu <Term k="mvp" /> (la versión mínima para probar)</p>
                             <p className="whitespace-pre-wrap">{draft.mvp}</p>
                           </div>
                           <div>
                             <p className="label mb-1">Presupuesto estimado</p>
-                            <table className="w-full text-[13px]">
+                            <table className="w-full text-[14.5px]">
                               <tbody>
                                 {draft.budget.map((b, i) => (
                                   <tr key={i} className="border-t border-rule">
@@ -210,9 +220,9 @@ export function AgentRunner() {
                                     <td className="mono py-1.5 text-right">{usd(b.amount_usd)}</td>
                                   </tr>
                                 ))}
-                                <tr className="border-t" style={{ borderColor: "var(--rule-strong)" }}>
-                                  <td className="py-1.5 pr-3 font-semibold">Total estimado</td>
-                                  <td className="mono py-1.5 text-right font-medium">
+                                <tr className="border-t-2 border-ink font-bold">
+                                  <td className="py-1.5 pr-3">Total estimado</td>
+                                  <td className="mono py-1.5 text-right">
                                     {usd(draft.budget.reduce((s, b) => s + b.amount_usd, 0))}
                                   </td>
                                 </tr>
@@ -220,14 +230,14 @@ export function AgentRunner() {
                             </table>
                           </div>
                           <div>
-                            <p className="label mb-1">Pitch</p>
+                            <p className="label mb-1">Pitch (lo que dirías para convencer)</p>
                             <p className="whitespace-pre-wrap">{draft.pitch}</p>
                           </div>
-                          <p className="text-[12px] text-muted">Borrador: no es una aplicación enviable.</p>
+                          <p className="text-[13px] text-muted">Es un borrador para que lo mejores: no es una aplicación lista para enviar.</p>
                         </div>
                       </details>
                     ) : (
-                      loading && <p className="working label mt-2">Redactando borrador…</p>
+                      loading && <p className="working label mt-2">Boti está escribiendo el borrador…</p>
                     )}
                   </div>
                 </li>
@@ -238,15 +248,15 @@ export function AgentRunner() {
       )}
 
       {drafts && (
-        <section className="arrive grid gap-4 border-t border-rule-strong pt-6 sm:grid-cols-[1fr_auto] sm:items-end" style={{ borderColor: "var(--rule-strong)" }}>
+        <section className="arrive card-sun grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
           <div className="space-y-1">
-            <span className="mono text-muted">03</span>
-            <h2 className="display text-[26px]">Certifica el proyecto</h2>
-            <p className="max-w-[56ch] text-muted">
-              Crea un Project Passport onchain para que un financiador pueda verificar tu avance sin confiar en tu palabra.
+            <h2 className="display text-[28px]">Ahora, dale prueba a tu proyecto</h2>
+            <p className="max-w-[56ch] font-medium">
+              Crea tu pasaporte: un registro público de tus avances para que un financiador pueda verificarlos sin
+              confiar solo en tu palabra.
             </p>
           </div>
-          <Link className="btn" href="/passport/new">Crear passport</Link>
+          <Link className="btn" href="/passport/new">Crear mi pasaporte</Link>
         </section>
       )}
     </div>

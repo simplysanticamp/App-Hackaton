@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { useConnection, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { NetworkGuard } from "@/components/NetworkGuard";
+import { Term } from "@/components/Term";
 import { TxStatus } from "@/components/TxStatus";
 import {
   APPLICATION_STATUS,
@@ -49,10 +50,10 @@ function AddMilestone({ tokenId, onDone }: { tokenId: bigint; onDone: () => void
   return (
     <section className="space-y-4">
       <div className="flex items-baseline gap-3 border-b border-rule pb-2">
-        <h2 className="display text-[26px]">Registrar un hito</h2>
+        <h2 className="display text-[28px]">Suma un avance</h2>
       </div>
       <div className="space-y-1">
-        <label className="label" htmlFor="ms-desc">Descripción</label>
+        <label className="label" htmlFor="ms-desc">¿Qué lograste?</label>
         <input
           id="ms-desc"
           className="field"
@@ -63,7 +64,7 @@ function AddMilestone({ tokenId, onDone }: { tokenId: bigint; onDone: () => void
         />
       </div>
       <div className="space-y-1">
-        <label className="label" htmlFor="ms-text">Evidencia</label>
+        <label className="label" htmlFor="ms-text">Tu evidencia</label>
         <textarea
           id="ms-text"
           className="field"
@@ -81,10 +82,10 @@ function AddMilestone({ tokenId, onDone }: { tokenId: bigint; onDone: () => void
         </div>
       </div>
       <p className="text-[13px] text-muted">
-        Solo se publica el hash keccak256 de la evidencia. El contenido no sale de tu navegador.
+        Solo se publica su <Term k="hash" /> (una huella digital). Tu archivo o texto no sale de tu navegador.
       </p>
       <button className="btn" disabled={!canSubmit || busy} onClick={submit}>
-        {busy ? "Registrando…" : "Registrar hito onchain"}
+        {busy ? "Guardando…" : "Guardar avance onchain"}
       </button>
       <TxStatus
         hash={hash}
@@ -112,7 +113,7 @@ function AddApplication({ tokenId, onDone }: { tokenId: bigint; onDone: () => vo
   return (
     <section className="space-y-4">
       <div className="flex items-baseline gap-3 border-b border-rule pb-2">
-        <h2 className="display text-[26px]">Registrar aplicación a un fondo</h2>
+        <h2 className="display text-[28px]">Cuenta a qué fondos aplicaste</h2>
       </div>
       <div className="space-y-1">
         <label className="label" htmlFor="app-name">Convocatoria</label>
@@ -147,7 +148,7 @@ function AddApplication({ tokenId, onDone }: { tokenId: bigint; onDone: () => vo
           )
         }
       >
-        {busy ? "Registrando…" : "Registrar aplicación onchain"}
+        {busy ? "Guardando…" : "Guardar aplicación onchain"}
       </button>
       <TxStatus hash={hash} signing={isPending} confirming={receipt.isLoading} confirmed={receipt.isSuccess} error={error ?? receipt.error} />
       {receipt.isSuccess && (
@@ -169,7 +170,7 @@ function EvidenceCheck({ hashes }: { hashes: readonly `0x${string}`[] }) {
 
   return (
     <div className="space-y-2">
-      <p className="label">Comparar evidencia con los hashes onchain</p>
+      <p className="label">Comprobar evidencia: ¿coincide con la huella guardada?</p>
       <textarea
         className="field"
         rows={2}
@@ -244,7 +245,7 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
   if (owner.error || !owner.data) {
     return shell(
       <div className="space-y-2">
-        <h1 className="display text-[38px]">Passport Nº {id}</h1>
+        <h1 className="display text-[38px]">Pasaporte Nº {id}</h1>
         <p className="text-muted">No existe en {hskTestnet.name}. Revisa el número o crea uno nuevo.</p>
       </div>,
     );
@@ -256,48 +257,48 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
   const verifiedCount = list.filter((m) => m.verifiedAt !== 0n && m.revokedAt === 0n).length;
 
   return shell(
-    <div className="space-y-12">
-      <header className="grid gap-6 border-b border-rule-strong pb-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]" style={{ borderColor: "var(--rule-strong)" }}>
+    <div className="space-y-10">
+      <header className="card grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
         <div>
-          <p className="label">Project Passport</p>
+          <p className="label">Pasaporte de proyecto</p>
           <h1 className="display text-[64px] sm:text-[84px]">Nº {id}</h1>
         </div>
         <dl className="space-y-4 self-end">
           <div>
-            <dt className="label">Founder</dt>
+            <dt className="label">Creado por (billetera)</dt>
             <dd className="mono break-all">{owner.data}</dd>
           </div>
           <div>
-            <dt className="label">Metadata</dt>
+            <dt className="label">Descripción guardada en <Term k="ipfs" /></dt>
             <dd className="mono break-all">{uri.data ?? "…"}</dd>
           </div>
           <div>
-            <dt className="label">Hitos</dt>
+            <dt className="label">Avances</dt>
             <dd>
-              {list.length} registrados · {verifiedCount} verificados
+              {list.length} anotados · {verifiedCount} verificados
             </dd>
           </div>
         </dl>
         <p className="text-[13px] lg:col-span-2">
-          <Link className="link" href={`/passport/${id}/reporte`}>Reporte de verificación para financiadores</Link>
+          <Link className="link" href={`/passport/${id}/reporte`}>Ver el reporte para financiadores</Link>
         </p>
         <p className="text-[13px] text-muted lg:col-span-2">
-          Soulbound: no se puede transferir. Certifica evidencia, no identidad. Un hito solo cuenta como verificado
-          cuando lo atesta un validator distinto de quien lo registró.
+          Este pasaporte es <Term k="soulbound" />: no se puede transferir. Certifica evidencia, no identidad. Un avance
+          solo cuenta como verificado cuando lo confirma un <Term k="validador" /> distinto de quien lo anotó.
         </p>
       </header>
 
       {isValidator && (
-        <section className="space-y-4 border-l-2 border-verified pl-4">
+        <section className="card space-y-4">
           <div>
-            <p className="label !text-verified">Modo validator</p>
+            <p className="label !text-verified">Modo validador</p>
             <p className="text-[13px] text-muted">
-              Tu wallet tiene VALIDATOR_ROLE. Verifica solo después de comparar la evidencia con el hash. No puedes
-              verificar un hito que tú mismo registraste, y una revocación es definitiva: el historial conserva que fue
-              verificado y luego invalidado.
+              Tu billetera tiene el rol de <Term k="validador" />. Verifica solo después de comparar la evidencia con su{" "}
+              <Term k="hash" />. No puedes verificar un avance que tú mismo anotaste, y anular una verificación es
+              definitivo: el historial conserva que fue verificado y luego invalidado.
             </p>
           </div>
-          {!onRightChain && <p className="notice">Cambia tu wallet a {hskTestnet.name} para firmar.</p>}
+          {!onRightChain && <p className="notice">Cambia tu billetera a {hskTestnet.name} para poder aprobar.</p>}
           <EvidenceCheck hashes={list.map((m) => m.evidenceHash)} />
           <TxStatus
             hash={act.data}
@@ -311,29 +312,29 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
 
       <section className="space-y-2">
         <div className="flex items-baseline gap-3 border-b border-rule pb-2">
-          <h2 className="display text-[26px]">Hitos</h2>
+          <h2 className="display text-[28px]">Avances del proyecto</h2>
         </div>
-        {milestones.isLoading && <p className="working label py-3">Cargando hitos…</p>}
-        {milestones.error && <p className="notice notice-error">No se pudieron leer los hitos.</p>}
+        {milestones.isLoading && <p className="working label py-3">Leyendo los avances…</p>}
+        {milestones.error && <p className="notice notice-error">No se pudieron leer los avances.</p>}
         {!milestones.isLoading && !milestones.error && list.length === 0 && (
-          <p className="py-4 text-muted">Este passport todavía no tiene hitos registrados.</p>
+          <p className="py-4 text-muted">Este pasaporte todavía no tiene avances. El primero es el más importante.</p>
         )}
-        <ol>
+        <ol className="space-y-3">
           {list.map((m, i) => {
             const revoked = m.revokedAt !== 0n;
             const verified = m.verifiedAt !== 0n && !revoked;
             const byFounder = m.author.toLowerCase() === owner.data.toLowerCase();
             return (
-              <li key={i} className="grid grid-cols-[2.25rem_1fr] gap-x-3 gap-y-1 border-b border-rule py-4 sm:grid-cols-[3rem_1fr_auto]">
+              <li key={i} className="card-flat grid grid-cols-[2.25rem_1fr] gap-x-3 gap-y-1 sm:grid-cols-[3rem_1fr_auto]">
                 <span className="mono pt-0.5 text-muted">{String(i + 1).padStart(2, "0")}</span>
                 <div className="min-w-0 space-y-1">
                   <p className={`text-[16px] font-medium ${revoked ? "text-muted line-through" : ""}`}>{m.description}</p>
                   <p className="mono break-all text-muted" title={m.evidenceHash}>
-                    <span className="label mr-2">hash</span>
+                    <span className="label mr-2"><Term k="hash">huella</Term></span>
                     {shortHash(m.evidenceHash)}
                   </p>
                   <p className="text-[12.5px] text-muted">
-                    Registrado el {date(m.createdAt)} por {byFounder ? "el founder" : "un validator"}
+                    Anotado el {date(m.createdAt)} por {byFounder ? "quien creó el proyecto" : "un validador"}
                     {m.verifiedAt !== 0n && ` · verificado el ${date(m.verifiedAt)}`}
                     {revoked && ` · revocado el ${date(m.revokedAt)}`}
                   </p>
@@ -378,12 +379,12 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
       {fundingRegistryAddress && (
         <section className="space-y-2">
           <div className="flex items-baseline gap-3 border-b border-rule pb-2">
-            <h2 className="display text-[26px]">Aplicaciones a fondos</h2>
+            <h2 className="display text-[28px]">Aplicaciones a fondos</h2>
           </div>
           {apps.data && apps.data.length === 0 && <p className="py-4 text-muted">Sin aplicaciones registradas.</p>}
-          <ul>
+          <ul className="space-y-2">
             {(apps.data ?? []).map((a, i) => (
-              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-rule py-3">
+              <li key={i} className="card-flat flex flex-wrap items-baseline justify-between gap-x-4 !py-3">
                 <span className="font-medium">{a.opportunityName}</span>
                 <span className="text-[13px] text-muted">
                   {APPLICATION_STATUS[a.status] ?? `Estado ${a.status}`} · {date(a.recordedAt)}
@@ -403,7 +404,7 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
         </NetworkGuard>
       ) : (
         <p className="border-t border-rule pt-4 text-[13px] text-muted">
-          Conecta la wallet del founder para registrar hitos en este passport.
+          Si este es tu proyecto, conecta la billetera con la que lo creaste para sumar avances.
         </p>
       )}
     </div>,
