@@ -2,54 +2,89 @@
 pragma solidity 0.8.28;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /// @title Milestones
-/// @notice Registro de hitos de un Passport. Solo se guarda el hash de la evidencia, nunca el archivo.
-/// @dev Demo: un único `validator` verifica. En producción debe ser un multisig / attestation descentralizada.
-contract Milestones is Ownable {
-    error NotPassportOwner();
-    error NotValidator();
+/// @notice Registro de hitos de un Project Passport. Solo se guarda el hash de la evidencia (bytes32),
+///         nunca el archivo: la evidencia real vive offchain y el hash permite probar que no cambió.
+/// @dev Control de acceso con AccessControl (no Ownable) para que en producción `VALIDATOR_ROLE` pueda
+///      otorgarse a un multisig o a varios verificadores sin migrar el contrato. En la demo es una sola
+///      dirección, y eso es un riesgo reconocido explícitamente en el pitch.
+contract Milestones is AccessControl {
+    /// @notice El llamante no es el dueño del passport ni tiene `VALIDATOR_ROLE`.
+    error NotAuthorized();
+    /// @notice La descripción del hito está vacía.
     error EmptyDescription();
+    /// @notice La descripción excede `MAX_DESCRIPTION_BYTES`.
     error DescriptionTooLong();
+    /// @notice El hash de evidencia es `bytes32(0)`.
     error EmptyEvidenceHash();
+    /// @notice No existe un hito con ese `milestoneId` para ese `tokenId`.
     error MilestoneNotFound();
+    /// @notice El hito ya fue verificado; la verificación no se repite ni se revierte.
     error AlreadyVerified();
+    /// @notice Se pasó `address(0)` donde se requiere una dirección válida.
     error ZeroAddress();
 
+    /// @notice Rol autorizado a verificar hitos y a registrarlos en nombre de un founder.
+    /// @dev En producción debe apuntar a un multisig. `DEFAULT_ADMIN_ROLE` lo otorga y lo revoca.
+    bytes32 public constant VALIDATOR_ROLE = keccak256("VALIDATOR_ROLE");
+
+    /// @notice Tope de bytes de la descripción, para acotar el costo de gas de la escritura.
     uint256 public constant MAX_DESCRIPTION_BYTES = 280;
 
+    /// @param description Texto corto del hito (no es evidencia, es contexto humano).
+    /// @param evidenceHash keccak256 del archivo de evidencia, calculado offchain.
+    /// @param createdAt Timestamp del bloque en que se registró.
+    /// @param verifiedAt Timestamp de la verificación; `0` significa sin verificar.
     struct Milestone {
         string description;
         bytes32 evidenceHash;
         uint64 createdAt;
-        uint64 verifiedAt; // 0 = sin verificar
+        uint64 verifiedAt;
     }
 
+    /// @notice Contrato ProjectPassport contra el que se valida la existencia y titularidad del tokenId.
     IERC721 public immutable passport;
-    address public validator;
 
     mapping(uint256 tokenId => Milestone[]) private _milestones;
 
+    /// @notice Emitido al registrar un hito nuevo.
     event MilestoneAdded(
-        uint256 indexed tokenId, uint256 indexed milestoneId, bytes32 evidenceHash, string description
+        uint256 indexed tokenId,
+        uint256 indexed milestoneId,
+        address indexed author,
+        bytes32 evidenceHash,
+        string description
     );
+    /// @notice Emitido cuando un validator marca un hito como verificado.
     event MilestoneVerified(uint256 indexed tokenId, uint256 indexed milestoneId, address indexed validator);
-    event ValidatorUpdated(address indexed previousValidator, address indexed newValidator);
 
-    constructor(address passport_, address validator_, address initialOwner) Ownable(initialOwner) {
-        if (passport_ == address(0) || validator_ == address(0)) revert ZeroAddress();
+    /// @notice Despliega el registro de hitos apuntando a un ProjectPassport ya desplegado.
+    /// @param passport_ Dirección del ProjectPassport.
+    /// @param validator_ Dirección que recibe `VALIDATOR_ROLE` al desplegar.
+    /// @param admin_ Dirección que recibe `DEFAULT_ADMIN_ROLE` (puede rotar el validator).
+    constructor(address passport_, address validator_, address admin_) {
+        if (passport_ == address(0) || validator_ == address(0) || admin_ == address(0)) revert ZeroAddress();
         passport = IERC721(passport_);
-        validator = validator_;
-        emit ValidatorUpdated(address(0), validator_);
+        _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(VALIDATOR_ROLE, validator_);
     }
 
-    /// @notice Solo el dueño del Passport agrega hitos.
+    /// @notice Registra un hito para un passport. Solo el dueño del passport o un `VALIDATOR_ROLE`.
+    /// @dev `passport.ownerOf` revierte si el tokenId no existe, así que valida existencia y titularidad
+    ///      en una sola llamada. El archivo de evidencia NUNCA se sube: solo su hash.
+    /// @param tokenId Id del Project Passport.
+    /// @param description Texto del hito (1..`MAX_DESCRIPTION_BYTES` bytes).
+    /// @param evidenceHash keccak256 de la evidencia offchain; no puede ser cero.
+    /// @return milestoneId Índice del hito dentro del historial de ese tokenId (empieza en 0).
     function addMilestone(uint256 tokenId, string calldata description, bytes32 evidenceHash)
         external
         returns (uint256 milestoneId)
     {
-        if (passport.ownerOf(tokenId) != msg.sender) revert NotPassportOwner(); // revierte si no existe
+        address holder = passport.ownerOf(tokenId); // revierte si el tokenId no existe
+        if (msg.sender != holder && !hasRole(VALIDATOR_ROLE, msg.sender)) revert NotAuthorized();
+
         uint256 len = bytes(description).length;
         if (len == 0) revert EmptyDescription();
         if (len > MAX_DESCRIPTION_BYTES) revert DescriptionTooLong();
@@ -65,12 +100,16 @@ contract Milestones is Ownable {
                 verifiedAt: 0
             })
         );
-        emit MilestoneAdded(tokenId, milestoneId, evidenceHash, description);
+        emit MilestoneAdded(tokenId, milestoneId, msg.sender, evidenceHash, description);
     }
 
-    /// @notice Solo el validator marca un hito como verificado.
-    function verifyMilestone(uint256 tokenId, uint256 milestoneId) external {
-        if (msg.sender != validator) revert NotValidator();
+    /// @notice Marca un hito como verificado. Exclusivo de `VALIDATOR_ROLE`.
+    /// @dev No re-valida la existencia del tokenId contra el Passport: un hito solo puede existir si el
+    ///      passport existía al registrarlo, y el passport es soulbound y no se puede quemar. Si el tokenId
+    ///      no existe, `_milestones[tokenId]` está vacío y revierte con `MilestoneNotFound`.
+    /// @param tokenId Id del Project Passport.
+    /// @param milestoneId Índice del hito dentro del historial de ese tokenId.
+    function verifyMilestone(uint256 tokenId, uint256 milestoneId) external onlyRole(VALIDATOR_ROLE) {
         if (milestoneId >= _milestones[tokenId].length) revert MilestoneNotFound();
         Milestone storage m = _milestones[tokenId][milestoneId];
         if (m.verifiedAt != 0) revert AlreadyVerified();
@@ -80,18 +119,28 @@ contract Milestones is Ownable {
         emit MilestoneVerified(tokenId, milestoneId, msg.sender);
     }
 
-    function setValidator(address newValidator) external onlyOwner {
-        if (newValidator == address(0)) revert ZeroAddress();
-        emit ValidatorUpdated(validator, newValidator);
-        validator = newValidator;
-    }
-
+    /// @notice Cantidad de hitos registrados para un passport.
+    /// @param tokenId Id del Project Passport.
+    /// @return Número de hitos (0 si el tokenId no existe o no tiene hitos).
     function milestoneCount(uint256 tokenId) external view returns (uint256) {
         return _milestones[tokenId].length;
     }
 
+    /// @notice Lee un hito puntual.
+    /// @param tokenId Id del Project Passport.
+    /// @param milestoneId Índice del hito.
+    /// @return El hito completo.
     function getMilestone(uint256 tokenId, uint256 milestoneId) external view returns (Milestone memory) {
         if (milestoneId >= _milestones[tokenId].length) revert MilestoneNotFound();
         return _milestones[tokenId][milestoneId];
+    }
+
+    /// @notice Historial completo de hitos de un passport.
+    /// @dev Solo para lectura offchain (`eth_call`): el array no tiene tope, así que no debe llamarse
+    ///      desde otro contrato. Para paginar, usar `milestoneCount` + `getMilestone`.
+    /// @param tokenId Id del Project Passport.
+    /// @return Array de hitos en orden de registro.
+    function getMilestones(uint256 tokenId) external view returns (Milestone[] memory) {
+        return _milestones[tokenId];
     }
 }
