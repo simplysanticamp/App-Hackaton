@@ -1,12 +1,14 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect } from "react";
+import type { Address } from "viem";
 import { useConnection, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { NetworkGuard } from "@/components/NetworkGuard";
+import { AddApplication, AddMilestone, EvidenceCheck } from "@/components/passport-forms";
+import { ApplicationList, MilestoneList, PassportHeader, type MilestoneView } from "@/components/passport-view";
 import { Term } from "@/components/Term";
 import { TxStatus } from "@/components/TxStatus";
 import {
-  APPLICATION_STATUS,
   fundingRegistryAbi,
   fundingRegistryAddress,
   milestonesAbi,
@@ -16,190 +18,12 @@ import {
   VALIDATOR_ROLE,
 } from "@/lib/contracts";
 import { hskTestnet } from "@/lib/chains";
-import { hashEvidence } from "@/lib/evidence";
-import type { Address } from "viem";
-import Link from "next/link";
-import { date, shortHash, Status } from "@/components/ledger";
-
-function AddMilestone({ tokenId, onDone }: { tokenId: bigint; onDone: () => void }) {
-  const [description, setDescription] = useState("");
-  const [text, setText] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [hashing, setHashing] = useState(false);
-  const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
-  const receipt = useWaitForTransactionReceipt({ hash });
-
-  const canSubmit = description.trim().length > 0 && (file || text.trim().length > 0);
-  const busy = hashing || isPending || receipt.isLoading;
-
-  async function submit() {
-    if (!milestonesAddress) return;
-    setHashing(true);
-    try {
-      // El hash se calcula aquí, en el navegador: el contenido de la evidencia nunca sale.
-      const evidenceHash = hashEvidence(file ? new Uint8Array(await file.arrayBuffer()) : text);
-      writeContract(
-        { address: milestonesAddress, abi: milestonesAbi, functionName: "addMilestone", args: [tokenId, description.trim(), evidenceHash] },
-        { onSuccess: () => { setDescription(""); setText(""); setFile(null); } },
-      );
-    } finally {
-      setHashing(false);
-    }
-  }
-
-  return (
-    <section className="space-y-4">
-      <div className="flex items-baseline gap-3 border-b border-rule pb-2">
-        <h2 className="display text-[28px]">Suma un avance</h2>
-      </div>
-      <div className="space-y-1">
-        <label className="label" htmlFor="ms-desc">¿Qué lograste?</label>
-        <input
-          id="ms-desc"
-          className="field"
-          placeholder="Qué se logró, en una frase"
-          maxLength={140}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
-        <label className="label" htmlFor="ms-text">Tu evidencia</label>
-        <textarea
-          id="ms-text"
-          className="field"
-          rows={3}
-          placeholder="Texto de la evidencia, o adjunta un archivo abajo"
-          value={text}
-          disabled={!!file}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <div className="flex items-center gap-3 text-[13px]">
-          <input type="file" aria-label="Archivo de evidencia" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          {file && (
-            <button type="button" className="link text-muted" onClick={() => setFile(null)}>Quitar archivo</button>
-          )}
-        </div>
-      </div>
-      <p className="text-[13px] text-muted">
-        Solo se publica su <Term k="hash" /> (una huella digital). Tu archivo o texto no sale de tu navegador.
-      </p>
-      <button className="btn" disabled={!canSubmit || busy} onClick={submit}>
-        {busy ? "Guardando…" : "Guardar avance onchain"}
-      </button>
-      <TxStatus
-        hash={hash}
-        signing={isPending}
-        confirming={receipt.isLoading}
-        confirmed={receipt.isSuccess}
-        error={error ?? receipt.error}
-      />
-      {receipt.isSuccess && (
-        <button className="btn btn-quiet" onClick={() => { onDone(); reset(); }}>Actualizar la lista</button>
-      )}
-    </section>
-  );
-}
-
-function AddApplication({ tokenId, onDone }: { tokenId: bigint; onDone: () => void }) {
-  const [name, setName] = useState("");
-  const [status, setStatus] = useState(1);
-  const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
-  const receipt = useWaitForTransactionReceipt({ hash });
-  const busy = isPending || receipt.isLoading;
-  const nameBytes = new TextEncoder().encode(name.trim()).length;
-  const valid = nameBytes > 0 && nameBytes <= 120;
-
-  return (
-    <section className="space-y-4">
-      <div className="flex items-baseline gap-3 border-b border-rule pb-2">
-        <h2 className="display text-[28px]">Cuenta a qué fondos aplicaste</h2>
-      </div>
-      <div className="space-y-1">
-        <label className="label" htmlFor="app-name">Convocatoria</label>
-        <input
-          id="app-name"
-          className="field"
-          placeholder="Nombre de la convocatoria, tal como la declaras"
-          maxLength={120}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
-        <label className="label" htmlFor="app-status">Estado</label>
-        <select id="app-status" className="field" value={status} onChange={(e) => setStatus(Number(e.target.value))}>
-          {APPLICATION_STATUS.map((label, i) => (
-            <option key={label} value={i}>{label}</option>
-          ))}
-        </select>
-      </div>
-      <p className="text-[13px] text-muted">
-        Es una declaración tuya: queda registrada con tu dirección y no se puede editar. Si el estado cambia,
-        registra una entrada nueva.
-      </p>
-      <button
-        className="btn"
-        disabled={!valid || busy}
-        onClick={() =>
-          writeContract(
-            { address: fundingRegistryAddress as Address, abi: fundingRegistryAbi, functionName: "recordFundingApplication", args: [tokenId, name.trim(), status] },
-            { onSuccess: () => setName("") },
-          )
-        }
-      >
-        {busy ? "Guardando…" : "Guardar aplicación onchain"}
-      </button>
-      <TxStatus hash={hash} signing={isPending} confirming={receipt.isLoading} confirmed={receipt.isSuccess} error={error ?? receipt.error} />
-      {receipt.isSuccess && (
-        <button className="btn btn-quiet" onClick={() => { onDone(); reset(); }}>Actualizar la lista</button>
-      )}
-    </section>
-  );
-}
-
-function EvidenceCheck({ hashes }: { hashes: readonly `0x${string}`[] }) {
-  const [text, setText] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [computed, setComputed] = useState<`0x${string}` | null>(null);
-
-  async function compute() {
-    setComputed(hashEvidence(file ? new Uint8Array(await file.arrayBuffer()) : text));
-  }
-  const matches = computed ? hashes.flatMap((h, i) => (h.toLowerCase() === computed.toLowerCase() ? [i + 1] : [])) : [];
-
-  return (
-    <div className="space-y-2">
-      <p className="label">Comprobar evidencia: ¿coincide con la huella guardada?</p>
-      <textarea
-        className="field"
-        rows={2}
-        placeholder="Pega el texto de la evidencia que te entregó el founder, o adjunta el archivo"
-        value={text}
-        disabled={!!file}
-        onChange={(e) => { setText(e.target.value); setComputed(null); }}
-      />
-      <div className="flex flex-wrap items-center gap-3 text-[13px]">
-        <input type="file" aria-label="Archivo de evidencia" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setComputed(null); }} />
-        <button className="btn btn-quiet" disabled={!file && !text.trim()} onClick={compute}>Calcular hash</button>
-      </div>
-      {computed && (
-        <p className="mono break-all text-[12px]">
-          {computed}
-          <span className={`ml-2 font-sans text-[13px] ${matches.length ? "text-verified" : "text-danger"}`}>
-            {matches.length ? `Coincide con el hito ${matches.map((n) => String(n).padStart(2, "0")).join(", ")}` : "No coincide con ningún hito de este passport"}
-          </span>
-        </p>
-      )}
-    </div>
-  );
-}
 
 export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
   const { id } = use(params);
   const valid = /^\d{1,20}$/.test(id);
   const tokenId = valid ? BigInt(id) : 0n;
-  const { address } = useConnection();
+  const { address, chainId } = useConnection();
   const read = { chainId: hskTestnet.id, query: { enabled: valid } } as const;
 
   const owner = useReadContract({ address: passportAddress, abi: passportAbi, functionName: "ownerOf", args: [tokenId], ...read });
@@ -214,7 +38,6 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
     query: { enabled: valid && !!fundingRegistryAddress },
   });
 
-  const { chainId } = useConnection();
   const role = useReadContract({
     address: milestonesAddress,
     abi: milestonesAbi,
@@ -252,41 +75,29 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
   }
 
   const ms: Address = milestonesAddress; // estrechado por la guarda de arriba; las closures no conservan el estrechamiento
-  const isOwner = !!address && address.toLowerCase() === owner.data.toLowerCase();
-  const list = milestones.data ?? [];
-  const verifiedCount = list.filter((m) => m.verifiedAt !== 0n && m.revokedAt === 0n).length;
+  const founder = owner.data;
+  const isOwner = !!address && address.toLowerCase() === founder.toLowerCase();
+  const list: MilestoneView[] = (milestones.data ?? []).map((m, i) => ({
+    id: i,
+    description: m.description,
+    evidenceHash: m.evidenceHash,
+    createdAt: Number(m.createdAt),
+    verifiedAt: m.verifiedAt !== 0n ? Number(m.verifiedAt) : null,
+    revokedAt: m.revokedAt !== 0n ? Number(m.revokedAt) : null,
+    author: m.author,
+  }));
+  const verifiedCount = list.filter((m) => m.verifiedAt !== null && m.revokedAt === null).length;
 
   return shell(
     <div className="space-y-10">
-      <header className="card grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
-        <div>
-          <p className="label">Pasaporte de proyecto</p>
-          <h1 className="display text-[64px] sm:text-[84px]">Nº {id}</h1>
-        </div>
-        <dl className="space-y-4 self-end">
-          <div>
-            <dt className="label">Creado por (billetera)</dt>
-            <dd className="mono break-all">{owner.data}</dd>
-          </div>
-          <div>
-            <dt className="label">Descripción guardada en <Term k="ipfs" /></dt>
-            <dd className="mono break-all">{uri.data ?? "…"}</dd>
-          </div>
-          <div>
-            <dt className="label">Avances</dt>
-            <dd>
-              {list.length} anotados · {verifiedCount} verificados
-            </dd>
-          </div>
-        </dl>
-        <p className="text-[13px] lg:col-span-2">
-          <Link className="link" href={`/passport/${id}/reporte`}>Ver el reporte para financiadores</Link>
-        </p>
-        <p className="text-[13px] text-muted lg:col-span-2">
-          Este pasaporte es <Term k="soulbound" />: no se puede transferir. Certifica evidencia, no identidad. Un avance
-          solo cuenta como verificado cuando lo confirma un <Term k="validador" /> distinto de quien lo anotó.
-        </p>
-      </header>
+      <PassportHeader
+        id={id}
+        founder={founder}
+        uri={uri.data ?? "…"}
+        total={list.length}
+        verified={verifiedCount}
+        reportHref={`/passport/${id}/reporte`}
+      />
 
       {isValidator && (
         <section className="card space-y-4">
@@ -299,7 +110,7 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
             </p>
           </div>
           {!onRightChain && <p className="notice">Cambia tu billetera a {hskTestnet.name} para poder aprobar.</p>}
-          <EvidenceCheck hashes={list.map((m) => m.evidenceHash)} />
+          <EvidenceCheck hashes={list.map((m) => m.evidenceHash as `0x${string}`)} />
           <TxStatus
             hash={act.data}
             signing={act.isPending}
@@ -310,89 +121,47 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
         </section>
       )}
 
-      <section className="space-y-2">
-        <div className="flex items-baseline gap-3 border-b border-rule pb-2">
-          <h2 className="display text-[28px]">Avances del proyecto</h2>
-        </div>
-        {milestones.isLoading && <p className="working label py-3">Leyendo los avances…</p>}
-        {milestones.error && <p className="notice notice-error">No se pudieron leer los avances.</p>}
-        {!milestones.isLoading && !milestones.error && list.length === 0 && (
-          <p className="py-4 text-muted">Este pasaporte todavía no tiene avances. El primero es el más importante.</p>
-        )}
-        <ol className="space-y-3">
-          {list.map((m, i) => {
-            const revoked = m.revokedAt !== 0n;
-            const verified = m.verifiedAt !== 0n && !revoked;
-            const byFounder = m.author.toLowerCase() === owner.data.toLowerCase();
-            return (
-              <li key={i} className="card-flat grid grid-cols-[2.25rem_1fr] gap-x-3 gap-y-1 sm:grid-cols-[3rem_1fr_auto]">
-                <span className="mono pt-0.5 text-muted">{String(i + 1).padStart(2, "0")}</span>
-                <div className="min-w-0 space-y-1">
-                  <p className={`text-[16px] font-medium ${revoked ? "text-muted line-through" : ""}`}>{m.description}</p>
-                  <p className="mono break-all text-muted" title={m.evidenceHash}>
-                    <span className="label mr-2"><Term k="hash">huella</Term></span>
-                    {shortHash(m.evidenceHash)}
-                  </p>
-                  <p className="text-[12.5px] text-muted">
-                    Anotado el {date(m.createdAt)} por {byFounder ? "quien creó el proyecto" : "un validador"}
-                    {m.verifiedAt !== 0n && ` · verificado el ${date(m.verifiedAt)}`}
-                    {revoked && ` · revocado el ${date(m.revokedAt)}`}
-                  </p>
-                </div>
-                <p className="col-start-2 text-[13px] font-medium sm:col-start-3 sm:text-right">
-                  <Status verified={verified} revoked={revoked} />
-                </p>
-                {isValidator && onRightChain && !revoked && (
-                  <div className="col-start-2 mt-1 sm:col-start-3 sm:mt-0 sm:text-right">
-                    {!verified ? (
-                      <button
-                        className="btn btn-quiet"
-                        disabled={actBusy || m.author.toLowerCase() === address?.toLowerCase()}
-                        title={m.author.toLowerCase() === address?.toLowerCase() ? "No puedes verificar un hito que tú registraste" : undefined}
-                        onClick={() =>
-                          act.writeContract({ address: ms, abi: milestonesAbi, functionName: "verifyMilestone", args: [tokenId, BigInt(i)] })
-                        }
-                      >
-                        Verificar
-                      </button>
-                    ) : (
-                      <button
-                        className="btn btn-quiet"
-                        disabled={actBusy}
-                        onClick={() => {
-                          if (window.confirm("La revocación es definitiva. ¿Revocar la verificación de este hito?")) {
-                            act.writeContract({ address: ms, abi: milestonesAbi, functionName: "revokeVerification", args: [tokenId, BigInt(i)] });
-                          }
-                        }}
-                      >
-                        Revocar
-                      </button>
-                    )}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </section>
+      <MilestoneList
+        milestones={list}
+        founder={founder}
+        loading={milestones.isLoading}
+        failed={!!milestones.error}
+        actions={(m, i) => {
+          if (!isValidator || !onRightChain || m.revokedAt !== null) return null;
+          const own = m.author.toLowerCase() === address?.toLowerCase();
+          return m.verifiedAt === null ? (
+            <button
+              className="btn btn-quiet"
+              disabled={actBusy || own}
+              title={own ? "No puedes verificar un hito que tú registraste" : undefined}
+              onClick={() => act.writeContract({ address: ms, abi: milestonesAbi, functionName: "verifyMilestone", args: [tokenId, BigInt(i)] })}
+            >
+              Verificar
+            </button>
+          ) : (
+            <button
+              className="btn btn-quiet"
+              disabled={actBusy}
+              onClick={() => {
+                if (window.confirm("La revocación es definitiva. ¿Revocar la verificación de este hito?")) {
+                  act.writeContract({ address: ms, abi: milestonesAbi, functionName: "revokeVerification", args: [tokenId, BigInt(i)] });
+                }
+              }}
+            >
+              Revocar
+            </button>
+          );
+        }}
+      />
 
       {fundingRegistryAddress && (
-        <section className="space-y-2">
-          <div className="flex items-baseline gap-3 border-b border-rule pb-2">
-            <h2 className="display text-[28px]">Aplicaciones a fondos</h2>
-          </div>
-          {apps.data && apps.data.length === 0 && <p className="py-4 text-muted">Sin aplicaciones registradas.</p>}
-          <ul className="space-y-2">
-            {(apps.data ?? []).map((a, i) => (
-              <li key={i} className="card-flat flex flex-wrap items-baseline justify-between gap-x-4 !py-3">
-                <span className="font-medium">{a.opportunityName}</span>
-                <span className="text-[13px] text-muted">
-                  {APPLICATION_STATUS[a.status] ?? `Estado ${a.status}`} · {date(a.recordedAt)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <ApplicationList
+          applications={(apps.data ?? []).map((a) => ({
+            opportunityName: a.opportunityName,
+            status: a.status,
+            recordedAt: Number(a.recordedAt),
+          }))}
+        />
       )}
 
       {isOwner ? (

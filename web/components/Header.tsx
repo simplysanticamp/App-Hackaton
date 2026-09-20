@@ -10,6 +10,7 @@ const NAV = [
   { href: "/", label: "Empezar" },
   { href: "/passport/new", label: "Crear pasaporte" },
   { href: "/glosario", label: "Glosario" },
+  { href: "/demo", label: "Demo" },
 ];
 
 export function Header() {
@@ -25,9 +26,9 @@ export function Header() {
           <span className="display text-[22px] sm:text-[24px]">Bootstrap</span>
         </Link>
 
-        <nav className="order-3 flex w-full items-center gap-1 sm:order-none sm:w-auto sm:gap-2" aria-label="Principal">
+        <nav className="order-3 flex w-full flex-wrap items-center gap-1 sm:order-none sm:w-auto sm:gap-2" aria-label="Principal">
           {NAV.map((n) => {
-            const active = pathname === n.href;
+            const active = n.href === "/demo" ? pathname.startsWith("/demo") : pathname === n.href;
             return (
               <Link
                 key={n.href}
@@ -48,11 +49,12 @@ export function Header() {
             if (validId) router.push(`/passport/${id}`);
           }}
         >
-          <label className="label whitespace-nowrap" htmlFor="open-passport">Buscar pasaporte Nº</label>
+          <label className="sr-only" htmlFor="open-passport">Buscar pasaporte por número</label>
           <input
             id="open-passport"
-            className="field mono !w-16 !px-2 !py-1 text-center"
+            className="field mono !w-32 !px-3 !py-1"
             inputMode="numeric"
+            placeholder="Pasaporte Nº"
             value={id}
             onChange={(e) => setId(e.target.value.trim())}
           />
