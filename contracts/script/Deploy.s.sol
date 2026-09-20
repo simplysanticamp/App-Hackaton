@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Script, console} from "forge-std/Script.sol";
+import {console} from "forge-std/Script.sol";
+import {DeployBase} from "./DeployBase.sol";
 import {ProjectPassport} from "../src/ProjectPassport.sol";
 import {Milestones} from "../src/Milestones.sol";
 import {FundingRegistry} from "../src/FundingRegistry.sol";
@@ -16,21 +17,23 @@ import {FundingRegistry} from "../src/FundingRegistry.sol";
 ///      (`cast wallet import bootstrap-deployer --interactive`) y pasarlo con `--account`.
 ///
 ///      Variables de entorno:
+///        OWNER     (obligatoria) — puede mintear passports.
 ///        VALIDATOR (obligatoria) — verifica hitos.
-///        OWNER     (opcional)    — puede mintear passports. Por defecto, el deployer.
 ///        ADMIN     (opcional)    — `DEFAULT_ADMIN_ROLE`: otorga y revoca roles. Por defecto, OWNER.
+///
+///      OWNER es obligatoria a propósito: ver `DeployBase.sol`. Usar `msg.sender` como default dejó un
+///      deploy con el owner en una dirección sin clave privada.
 ///
 ///      Separar ADMIN de OWNER y de VALIDATOR importa: `DEFAULT_ADMIN_ROLE` puede auto-otorgarse
 ///      `VALIDATOR_ROLE` y `RECORDER_ROLE`, así que si las tres son la misma EOA, filtrar esa clave
 ///      permite fabricar un historial "verificado" de cero. En producción, ADMIN debe ser un multisig.
-contract Deploy is Script {
+contract Deploy is DeployBase {
     function run() external returns (ProjectPassport passport, Milestones milestones, FundingRegistry registry) {
-        address validator = vm.envAddress("VALIDATOR");
-        require(validator != address(0), "VALIDATOR requerido");
+        address validator = _validator();
+        address owner = _owner();
+        address admin = _admin(owner);
 
         vm.startBroadcast();
-        address owner = vm.envOr("OWNER", msg.sender);
-        address admin = vm.envOr("ADMIN", owner);
         passport = new ProjectPassport(owner);
         milestones = new Milestones(address(passport), validator, admin);
         registry = new FundingRegistry(address(passport), admin);

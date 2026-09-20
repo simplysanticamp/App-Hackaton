@@ -98,7 +98,10 @@ contract IntegrationTest is Test {
         passport.transferFrom(founder, grantor, tokenId);
     }
 
-    /// @notice El script combinado despliega y conecta los tres contratos correctamente.
+    /// @notice El script combinado despliega y conecta los tres contratos, y rechaza una config inservible.
+    /// @dev Todo en un solo test a propósito: `vm.setEnv` escribe en el entorno del proceso, que es
+    ///      compartido, y forge corre los tests de un mismo contrato en paralelo. Repartir estos casos en
+    ///      varias funciones los hace competir por la misma variable OWNER.
     function test_DeployScriptWiresContracts() public {
         vm.setEnv("VALIDATOR", vm.toString(validator));
         vm.setEnv("OWNER", vm.toString(admin));
@@ -112,5 +115,17 @@ contract IntegrationTest is Test {
         assertTrue(ms.hasRole(ms.DEFAULT_ADMIN_ROLE(), admin));
         assertTrue(fr.hasRole(fr.DEFAULT_ADMIN_ROLE(), admin));
         assertEq(p.owner(), admin);
+
+        // El sender por defecto de forge se rechaza. No es hipotético: un deploy en HSK testnet quedó con
+        // el `owner` en esa dirección, que no tiene clave privada, y dejó el `DEFAULT_ADMIN_ROLE`
+        // inalcanzable para siempre.
+        vm.setEnv("OWNER", vm.toString(script.FOUNDRY_DEFAULT_SENDER()));
+        vm.expectRevert(bytes("OWNER: es el sender por defecto de forge, no tiene clave privada. Pasala explicita."));
+        script.run();
+
+        // Y OWNER es obligatoria: sin ella no se despliega nada.
+        vm.setEnv("OWNER", "");
+        vm.expectRevert();
+        script.run();
     }
 }

@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Script, console} from "forge-std/Script.sol";
+import {console} from "forge-std/Script.sol";
+import {DeployBase} from "./DeployBase.sol";
 import {FundingRegistry} from "../src/FundingRegistry.sol";
 
 /// @title DeployFundingRegistry
 /// @notice Despliega solo el registro de financiación, conectándolo a un ProjectPassport ya desplegado.
 /// @dev Uso: forge script script/DeployFundingRegistry.s.sol --rpc-url hsk_testnet --account <keystore> --broadcast
-///      Variables: PASSPORT_ADDRESS (obligatoria), ADMIN/OWNER (opcionales).
-contract DeployFundingRegistry is Script {
+///      Variables: PASSPORT_ADDRESS (obligatoria), OWNER (obligatoria salvo que se pase ADMIN), ADMIN
+///      (opcional, por defecto OWNER). Ver `DeployBase.sol`.
+contract DeployFundingRegistry is DeployBase {
     function run() external returns (FundingRegistry registry) {
-        address passport = vm.envAddress("PASSPORT_ADDRESS");
-        require(passport != address(0), "PASSPORT_ADDRESS requerida");
+        address passport = _passport();
+        address admin = _adminOrOwner();
 
         vm.startBroadcast();
-        address admin = vm.envOr("ADMIN", vm.envOr("OWNER", msg.sender));
         registry = new FundingRegistry(passport, admin);
         vm.stopBroadcast();
 

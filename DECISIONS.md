@@ -101,3 +101,36 @@ las correcciones que apliqué; las que decidí **no** aplicar están en `BLOCKER
     "considerar reentrancy... defensivo, no over-engineering". No es una vulnerabilidad, solo gas.
 30. **Actualicé `web/lib/chain.ts`** al nuevo struct `Milestone` (campo `author`), que era la única pieza
     del frontend acoplada al ABI de los contratos.
+
+## Primer deploy a HSK testnet (2026-09-20)
+
+El primer deploy a la chain 133 salió mal y hubo que redesplegar. Vale la pena dejar escrito qué pasó,
+porque el error no da ninguna señal en el momento: la transacción tiene éxito, el script imprime las
+direcciones correctas, y el daño solo aparece si alguien lee el estado onchain.
+
+31. **El deploy quedó con `owner` y `DEFAULT_ADMIN_ROLE` en `0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38`.**
+    Los cuatro scripts hacían `vm.envOr("OWNER", msg.sender)`. Dentro del frame de un script, `msg.sender`
+    es el caller por defecto de forge, **no** el firmante que sale de `--account`; solo coinciden si se pasa
+    `--sender`. Esa dirección es `keccak256("foundry default caller")` y no tiene clave privada: el `owner`
+    del Passport y el `DEFAULT_ADMIN_ROLE` de Milestones y FundingRegistry quedaron inalcanzables para
+    siempre. Imposible otorgar `RECORDER_ROLE` ni rotar el validator a un multisig — justo el argumento que
+    justifica haber elegido `AccessControl` sobre `Ownable` (decisión 6). Contratos abandonados, anotados
+    como `NO USAR` en `deployments/133.json`.
+32. **La simulación previa no lo detectó porque la corrí con `--sender`.** Eso sobreescribe el caller por
+    defecto, así que el dry run mostró la dirección correcta y el broadcast real (con `--account` solo) no.
+    Una simulación que no usa exactamente las mismas flags que el broadcast no prueba lo que parece probar.
+33. **`OWNER` pasó a obligatoria y `DeployBase.sol` rechaza explícitamente el default caller.** Preferí
+    reventar el deploy antes que aceptar un default silencioso: el modo de fallo es irreversible y no
+    produce ningún error en el momento. Los tres scripts individuales heredan el mismo guard; en ellos
+    `OWNER` solo hace falta si no se pasa `ADMIN`.
+34. **El test del guard vive dentro de `test_DeployScriptWiresContracts`, no en funciones aparte.**
+    `vm.setEnv` escribe en el entorno del proceso, que es compartido, y forge corre en paralelo los tests de
+    un mismo contrato: separarlos los hacía competir por la variable `OWNER` y el resultado era un fallo
+    intermitente.
+35. **Verificar el deploy leyendo la cadena, no la salida del script.** Los logs de `forge script` salen de
+    la simulación; en este caso imprimieron las mismas direcciones para dos senders distintos. La
+    comprobación buena es `cast call <passport> "owner()(address)"` y `hasRole(...)` contra el RPC.
+36. **`owner`, `admin` y `validator` comparten EOA en la demo**, contra lo que recomienda la decisión 27.
+    Es deliberado para el hackathon (una sola wallet con fondos) y el script avisa por consola. El founder
+    va a ser otra wallet, así que la separación de funciones en la verificación (decisión 26) se sostiene.
+    Queda como riesgo a mencionar en el pitch.

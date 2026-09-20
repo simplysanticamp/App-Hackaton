@@ -75,12 +75,19 @@ Variables de entorno (en `.env`, fuera del repo):
 | `HSK_TESTNET_RPC` | sí | RPC de HSK Chain testnet (chain id **133**) |
 | `HSK_MAINNET_RPC` | solo mainnet | RPC de HSK Chain mainnet (chain id **177**) |
 | `VALIDATOR` | sí | Dirección que recibe `VALIDATOR_ROLE` en `Milestones` |
-| `OWNER` | no | Owner del Passport (puede mintear); por defecto, el deployer |
+| `OWNER` | sí | Owner del Passport (puede mintear). **No tiene default** — ver abajo |
 | `ADMIN` | no | `DEFAULT_ADMIN_ROLE`: otorga y revoca roles; por defecto, `OWNER` |
 | `PASSPORT_ADDRESS` | solo scripts individuales | Passport ya desplegado al que conectarse |
 
 **Ninguna clave privada va en el `.env`.** Los scripts usan `vm.startBroadcast()` sin argumentos: el
 firmante sale de `--account <keystore>` en la CLI.
+
+> **`OWNER` es obligatoria y el script reventa si vale `0x1804c8AB…`.** Dentro del frame de un script,
+> `msg.sender` es el caller por defecto de forge, **no** el firmante de `--account`; solo coinciden si se
+> pasa `--sender`. Un deploy real en testnet quedó con el `owner` del Passport y el `DEFAULT_ADMIN_ROLE`
+> en `0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38` (= `keccak256("foundry default caller")`, sin clave
+> privada): roles irrecuperables, imposible rotar a multisig, hubo que redesplegar. Por eso `DeployBase.sol`
+> exige la dirección explícita y rechaza esa. Pasá `--sender` igual, por claridad.
 
 > Separar `ADMIN` de `OWNER` y de `VALIDATOR` no es cosmético: `DEFAULT_ADMIN_ROLE` puede auto-otorgarse
 > `VALIDATOR_ROLE` y `RECORDER_ROLE`, así que si las tres son la misma EOA, filtrar esa clave alcanza para
@@ -89,11 +96,16 @@ firmante sale de `--account <keystore>` en la CLI.
 ### Todo de una (recomendado)
 
 ```bash
-forge script script/Deploy.s.sol --rpc-url hsk_testnet --account bootstrap-deployer --broadcast
+forge script script/Deploy.s.sol --rpc-url hsk_testnet \
+  --account bootstrap-deployer --sender <direccion-del-keystore> --broadcast
 ```
 
 Imprime al final las tres direcciones ya en formato `CLAVE=valor`, listas para pegar en el `.env` del
 frontend (`PASSPORT_ADDRESS`, `MILESTONES_ADDRESS`, `FUNDING_REGISTRY_ADDRESS`).
+
+Las direcciones de cada red quedan registradas en `deployments/<chainId>.json`, junto con los tx hashes y
+quién tiene cada rol. **Confirmá siempre contra la cadena** (`cast call <passport> "owner()(address)"`), no
+contra la salida del script: los logs salen de la simulación.
 
 ### Uno por uno
 

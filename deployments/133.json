@@ -1,0 +1,37 @@
+{
+  "network": "HSK Chain testnet",
+  "chainId": 133,
+  "rpc": "https://testnet.hsk.xyz",
+  "deployedAt": "2026-09-20",
+  "verified": false,
+  "verificationNote": "Sin verificar en Blockscout todavia: falta la URL del explorer de HSK y la API key.",
+  "roles": {
+    "deployer": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
+    "owner": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
+    "admin": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
+    "validator": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
+    "note": "owner, admin y validator comparten EOA en la demo. Riesgo reconocido en el pitch: quien filtre esa clave puede fabricar historial verificado. En produccion, admin a multisig (los roles se rotan sin redesplegar)."
+  },
+  "contracts": {
+    "ProjectPassport": {
+      "address": "0x4aD904AD0a718e0bd61BF0006169e493D176Db88",
+      "txHash": "0xbfd7bc5a9440c07ff9ad3a34ebef222b9e16ded81cd50e55147aa51ab30ce77c"
+    },
+    "Milestones": {
+      "address": "0xe4Cdb8C27DeEa738F17bb6BDB5E5E3024e9d9052",
+      "txHash": "0x85fe921ee2887815cb9420f4490b4c701404ff5937e0e2b53340433271304e54"
+    },
+    "FundingRegistry": {
+      "address": "0x26478A32Fb854dB9f36b239fbd4C03B3df7049b4",
+      "txHash": "0xd845d3762cb2c39197c96c837f46c41ea6cfdadeba54a0af7a042aed28cbcf2d"
+    }
+  },
+  "abandoned": [
+    {
+      "reason": "Primer deploy: OWNER y ADMIN quedaron en 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38 (sender por defecto de forge, sin clave privada). owner del Passport y DEFAULT_ADMIN_ROLE inalcanzables para siempre. NO USAR.",
+      "ProjectPassport": "0x2C61D8af5c4bDf0f5A3e33B42400E58D450b8F84",
+      "Milestones": "0x11b5E27B651fA8E435C860c2C200f082C61f69E6",
+      "FundingRegistry": "0x60BcE2F11cCabCb9a7F0C41921b85e28469c6DaA"
+    }
+  ]
+}
