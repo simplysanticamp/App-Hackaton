@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useConnection, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { NetworkGuard } from "@/components/NetworkGuard";
 import { TxStatus } from "@/components/TxStatus";
@@ -12,9 +12,11 @@ import {
   milestonesAddress,
   passportAbi,
   passportAddress,
+  VALIDATOR_ROLE,
 } from "@/lib/contracts";
 import { hskTestnet } from "@/lib/chains";
 import { hashEvidence } from "@/lib/evidence";
+import type { Address } from "viem";
 
 const date = (ts: bigint | number) =>
   new Date(Number(ts) * 1000).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
@@ -131,6 +133,43 @@ function AddMilestone({ tokenId, onDone }: { tokenId: bigint; onDone: () => void
   );
 }
 
+function EvidenceCheck({ hashes }: { hashes: readonly `0x${string}`[] }) {
+  const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [computed, setComputed] = useState<`0x${string}` | null>(null);
+
+  async function compute() {
+    setComputed(hashEvidence(file ? new Uint8Array(await file.arrayBuffer()) : text));
+  }
+  const matches = computed ? hashes.flatMap((h, i) => (h.toLowerCase() === computed.toLowerCase() ? [i + 1] : [])) : [];
+
+  return (
+    <div className="space-y-2">
+      <p className="label">Comparar evidencia con los hashes onchain</p>
+      <textarea
+        className="field"
+        rows={2}
+        placeholder="Pega el texto de la evidencia que te entregó el founder, o adjunta el archivo"
+        value={text}
+        disabled={!!file}
+        onChange={(e) => { setText(e.target.value); setComputed(null); }}
+      />
+      <div className="flex flex-wrap items-center gap-3 text-[13px]">
+        <input type="file" aria-label="Archivo de evidencia" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setComputed(null); }} />
+        <button className="btn btn-quiet" disabled={!file && !text.trim()} onClick={compute}>Calcular hash</button>
+      </div>
+      {computed && (
+        <p className="mono break-all text-[12px]">
+          {computed}
+          <span className={`ml-2 font-sans text-[13px] ${matches.length ? "text-verified" : "text-danger"}`}>
+            {matches.length ? `Coincide con el hito ${matches.map((n) => String(n).padStart(2, "0")).join(", ")}` : "No coincide con ningún hito de este passport"}
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
   const { id } = use(params);
   const valid = /^\d{1,20}$/.test(id);
@@ -150,6 +189,25 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
     query: { enabled: valid && !!fundingRegistryAddress },
   });
 
+  const { chainId } = useConnection();
+  const role = useReadContract({
+    address: milestonesAddress,
+    abi: milestonesAbi,
+    functionName: "hasRole",
+    args: [VALIDATOR_ROLE, (address ?? "0x0000000000000000000000000000000000000000") as Address],
+    chainId: hskTestnet.id,
+    query: { enabled: !!address },
+  });
+  const isValidator = role.data === true;
+  const onRightChain = chainId === hskTestnet.id;
+  const act = useWriteContract();
+  const actReceipt = useWaitForTransactionReceipt({ hash: act.data });
+  const refetchMilestones = milestones.refetch;
+  useEffect(() => {
+    if (actReceipt.isSuccess) void refetchMilestones();
+  }, [actReceipt.isSuccess, refetchMilestones]);
+  const actBusy = act.isPending || actReceipt.isLoading;
+
   const shell = (children: React.ReactNode) => (
     <main className="mx-auto w-full max-w-5xl px-5 pb-16 pt-10">{children}</main>
   );
@@ -168,6 +226,7 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
     );
   }
 
+  const ms: Address = milestonesAddress; // estrechado por la guarda de arriba; las closures no conservan el estrechamiento
   const isOwner = !!address && address.toLowerCase() === owner.data.toLowerCase();
   const list = milestones.data ?? [];
   const verifiedCount = list.filter((m) => m.verifiedAt !== 0n && m.revokedAt === 0n).length;
@@ -201,6 +260,28 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
         </p>
       </header>
 
+      {isValidator && (
+        <section className="space-y-4 border-l-2 border-verified pl-4">
+          <div>
+            <p className="label !text-verified">Modo validator</p>
+            <p className="text-[13px] text-muted">
+              Tu wallet tiene VALIDATOR_ROLE. Verifica solo después de comparar la evidencia con el hash. No puedes
+              verificar un hito que tú mismo registraste, y una revocación es definitiva: el historial conserva que fue
+              verificado y luego invalidado.
+            </p>
+          </div>
+          {!onRightChain && <p className="notice">Cambia tu wallet a {hskTestnet.name} para firmar.</p>}
+          <EvidenceCheck hashes={list.map((m) => m.evidenceHash)} />
+          <TxStatus
+            hash={act.data}
+            signing={act.isPending}
+            confirming={actReceipt.isLoading}
+            confirmed={actReceipt.isSuccess}
+            error={act.error ?? actReceipt.error}
+          />
+        </section>
+      )}
+
       <section className="space-y-2">
         <div className="flex items-baseline gap-3 border-b border-rule pb-2">
           <h2 className="display text-[26px]">Hitos</h2>
@@ -233,6 +314,34 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
                 <p className="col-start-2 text-[13px] font-medium sm:col-start-3 sm:text-right">
                   <Status verified={verified} revoked={revoked} />
                 </p>
+                {isValidator && onRightChain && !revoked && (
+                  <div className="col-start-2 mt-1 sm:col-start-3 sm:mt-0 sm:text-right">
+                    {!verified ? (
+                      <button
+                        className="btn btn-quiet"
+                        disabled={actBusy || m.author.toLowerCase() === address?.toLowerCase()}
+                        title={m.author.toLowerCase() === address?.toLowerCase() ? "No puedes verificar un hito que tú registraste" : undefined}
+                        onClick={() =>
+                          act.writeContract({ address: ms, abi: milestonesAbi, functionName: "verifyMilestone", args: [tokenId, BigInt(i)] })
+                        }
+                      >
+                        Verificar
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-quiet"
+                        disabled={actBusy}
+                        onClick={() => {
+                          if (window.confirm("La revocación es definitiva. ¿Revocar la verificación de este hito?")) {
+                            act.writeContract({ address: ms, abi: milestonesAbi, functionName: "revokeVerification", args: [tokenId, BigInt(i)] });
+                          }
+                        }}
+                      >
+                        Revocar
+                      </button>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}
