@@ -8,8 +8,9 @@ Están todas en `DECISIONS.md`, pero estas tres son las que un juez técnico te 
 
 - **`VALIDATOR_ROLE` ahora también puede agregar hitos, no solo verificarlos** (lo pedía el spec). Antes,
   solo el dueño del passport podía. Es una ampliación de confianza: el validator puede escribir en el
-  historial de un proyecto ajeno. Lo mitigué añadiendo `author` al evento `MilestoneAdded`, así queda
-  auditable quién registró cada cosa. **Si preferís el modelo estricto anterior, es un `if` de una línea.**
+  historial de un proyecto ajeno. Lo mitigué guardando `author` **en storage** (no solo en el evento) y
+  prohibiendo que un validator verifique un hito que él mismo registró. **Si preferís el modelo estricto
+  anterior, es un `if` de una línea** — y sigue siendo la opción más defendible para el pitch.
 - **`recordFundingReceived` volvió al alcance** (lo pedía el spec con nombre y firma). La sesión anterior lo
   había sacado del MVP. No mueve dinero, pero sí publica montos de financiación onchain: es información
   que deja de ser privada. Decidí que está bien porque es auto-reportada y el founder elige si la reporta.
@@ -31,7 +32,7 @@ entorno). Lo instalé, pero no está en tu `PATH` permanente:
 ```powershell
 $env:PATH = "$env:USERPROFILE\.foundry\bin;$env:PATH"
 cd contracts
-forge test          # 35 pasan
+forge test          # 40 pasan
 forge coverage      # 100% en src/
 ```
 
@@ -41,12 +42,13 @@ forge coverage      # 100% en src/
 
 | | |
 |---|---|
-| **Tests** | 35 pasan, 0 fallan (eran 24) |
+| **Tests** | 40 pasan, 0 fallan (eran 24) |
 | **Coverage `src/`** | 100% de líneas, statements, ramas y funciones |
 | **Contratos** | 3, exactamente como manda `CLAUDE.md` |
 | **Scripts de deploy** | 4 (uno por contrato + combinado), todo por variables de entorno |
 | **README** | `contracts/README.md`, reemplaza la plantilla de Foundry |
-| **Commits** | `4c7d926` (contratos + tests), `0eb133a` (scripts + README) sobre `develop` |
+| **Auditoría** | `/audit` con contexto fresco: apto testnet, no mainnet. 4 hallazgos corregidos |
+| **Commits** | 4 sobre `develop` |
 
 Lo concreto, contrato por contrato:
 
@@ -60,6 +62,24 @@ Lo concreto, contrato por contrato:
   y NatSpec explícito de que no hay custodia.
 - **`test/Integration.t.sol`** — el flujo completo de la demo end-to-end, más un test que ejecuta el script
   de deploy y verifica el cableado.
+
+## La auditoría (fuera del work order, pero la corrí antes de que despliegues)
+
+Veredicto: **apto para HSK testnet como demo, no apto para mainnet ni para uso real con financiadores.**
+
+Confirmó como sólido, leyendo el código de OpenZeppelin y no de memoria: el soulbound no tiene ninguna
+fuga (incluida la ruta de `transferFrom` sobre un tokenId inexistente, la única que evadiría el guard),
+la ausencia de custodia de valor, la validación de existencia del tokenId en todas las escrituras, y que
+no hay secretos ni claves en los scripts.
+
+Corregí cuatro hallazgos: privilegios concentrados en una sola EOA al desplegar, `author` que no quedaba
+en storage, un validator pudiendo verificar su propio hito, y constructores que aceptaban una dirección
+de Passport sin código. Detalle en `DECISIONS.md` 25-30.
+
+**Lo que decidí NO corregir está en `BLOCKERS.md` §4**, con el porqué. Los dos que más deberían
+preocuparte antes de enseñar esto a un financiador real: **no hay revocación** (una verificación errónea es
+permanente) y **el `metadataURI` no está comprometido a un hash** (si es una URL `https://` mutable, el
+founder puede cambiar el contenido después de que se lo revisaron).
 
 ## Qué quedó bloqueado
 

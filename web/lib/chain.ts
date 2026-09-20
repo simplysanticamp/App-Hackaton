@@ -7,7 +7,7 @@ const passportAbi = parseAbi([
 ]);
 
 const milestonesAbi = parseAbi([
-  "struct Milestone { string description; bytes32 evidenceHash; uint64 createdAt; uint64 verifiedAt; }",
+  "struct Milestone { string description; bytes32 evidenceHash; uint64 createdAt; uint64 verifiedAt; address author; }",
   "function milestoneCount(uint256 tokenId) view returns (uint256)",
   "function getMilestone(uint256 tokenId, uint256 milestoneId) view returns (Milestone)",
 ]);
@@ -33,6 +33,8 @@ export type PassportReport = {
     createdAt: number;
     verified: boolean;
     verifiedAt: number | null;
+    /** Quién registró el hito: el founder o un validator. No siempre es el dueño del passport. */
+    author: Address;
   }[];
 };
 
@@ -77,6 +79,7 @@ export async function getPassportReport(tokenId: bigint): Promise<PassportReport
       createdAt: Number(m.createdAt),
       verified: m.verifiedAt !== 0n,
       verifiedAt: m.verifiedAt !== 0n ? Number(m.verifiedAt) : null,
+      author: m.author,
     })),
   };
 }

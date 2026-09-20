@@ -23,6 +23,10 @@ contract Milestones is AccessControl {
     error MilestoneNotFound();
     /// @notice El hito ya fue verificado; la verificación no se repite ni se revierte.
     error AlreadyVerified();
+    /// @notice Un validator no puede verificar un hito que él mismo registró.
+    error SelfVerification();
+    /// @notice La dirección pasada como Passport no tiene código (no es un contrato).
+    error NotAContract();
     /// @notice Se pasó `address(0)` donde se requiere una dirección válida.
     error ZeroAddress();
 
@@ -37,11 +41,15 @@ contract Milestones is AccessControl {
     /// @param evidenceHash keccak256 del archivo de evidencia, calculado offchain.
     /// @param createdAt Timestamp del bloque en que se registró.
     /// @param verifiedAt Timestamp de la verificación; `0` significa sin verificar.
+    /// @param author Quién registró el hito: el dueño del passport o un `VALIDATOR_ROLE`. Va en storage y
+    ///        no solo en el evento, para que quien lea el historial sepa de quién es cada declaración sin
+    ///        tener que reconstruir logs.
     struct Milestone {
         string description;
         bytes32 evidenceHash;
         uint64 createdAt;
         uint64 verifiedAt;
+        address author;
     }
 
     /// @notice Contrato ProjectPassport contra el que se valida la existencia y titularidad del tokenId.
@@ -66,6 +74,9 @@ contract Milestones is AccessControl {
     /// @param admin_ Dirección que recibe `DEFAULT_ADMIN_ROLE` (puede rotar el validator).
     constructor(address passport_, address validator_, address admin_) {
         if (passport_ == address(0) || validator_ == address(0) || admin_ == address(0)) revert ZeroAddress();
+        // Atrapa un typo en PASSPORT_ADDRESS al desplegar: sin esto el contrato queda immutable apuntando
+        // a una dirección muerta y toda escritura revierte para siempre.
+        if (passport_.code.length == 0) revert NotAContract();
         passport = IERC721(passport_);
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(VALIDATOR_ROLE, validator_);
@@ -97,13 +108,19 @@ contract Milestones is AccessControl {
                 evidenceHash: evidenceHash,
                 // forge-lint: disable-next-line(unsafe-typecast)
                 createdAt: uint64(block.timestamp),
-                verifiedAt: 0
+                verifiedAt: 0,
+                author: msg.sender
             })
         );
         emit MilestoneAdded(tokenId, milestoneId, msg.sender, evidenceHash, description);
     }
 
     /// @notice Marca un hito como verificado. Exclusivo de `VALIDATOR_ROLE`.
+    /// @dev Separación de funciones: un validator NO puede verificar un hito que él mismo registró. Sin
+    ///      esto, una sola dirección con el rol podría registrar y atestiguar en el mismo bloque, y onchain
+    ///      sería indistinguible de una verificación independiente — que es justo la propiedad que
+    ///      certifica el producto. Si hace falta que un validator registre y otro verifique, se otorga el
+    ///      rol a dos direcciones.
     /// @dev No re-valida la existencia del tokenId contra el Passport: un hito solo puede existir si el
     ///      passport existía al registrarlo, y el passport es soulbound y no se puede quemar. Si el tokenId
     ///      no existe, `_milestones[tokenId]` está vacío y revierte con `MilestoneNotFound`.
@@ -113,6 +130,7 @@ contract Milestones is AccessControl {
         if (milestoneId >= _milestones[tokenId].length) revert MilestoneNotFound();
         Milestone storage m = _milestones[tokenId][milestoneId];
         if (m.verifiedAt != 0) revert AlreadyVerified();
+        if (m.author == msg.sender) revert SelfVerification();
 
         // forge-lint: disable-next-line(unsafe-typecast)
         m.verifiedAt = uint64(block.timestamp);
@@ -120,6 +138,9 @@ contract Milestones is AccessControl {
     }
 
     /// @notice Cantidad de hitos registrados para un passport.
+    /// @dev OJO: los getters de este contrato NO prueban existencia. Un tokenId inexistente y uno existente
+    ///      sin hitos devuelven lo mismo (0 / array vacío). Quien lea debe consultar `passport.ownerOf`
+    ///      primero si necesita distinguirlos.
     /// @param tokenId Id del Project Passport.
     /// @return Número de hitos (0 si el tokenId no existe o no tiene hitos).
     function milestoneCount(uint256 tokenId) external view returns (uint256) {

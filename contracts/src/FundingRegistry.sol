@@ -12,6 +12,10 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 ///      ERC-20, ni función de retiro: solo escribe datos. Es un registro AUTO-REPORTADO por el founder (o
 ///      por un `RECORDER_ROLE`): certifica qué se declaró y cuándo, no que la aplicación exista ni que el
 ///      dinero haya llegado. Un financiador debe contrastarlo con su propia fuente.
+/// @dev Matiz honesto sobre "no custodia": el contrato no tiene ninguna forma de *pedir* ni de *mover*
+///      valor, pero como cualquier dirección de la EVM puede *recibirlo* por vías que no puede rechazar
+///      (`selfdestruct` de un tercero, recompensas de bloque, un ERC-20 transferido directo). No hay
+///      función de rescate, así que ese valor quedaría atrapado — es el precio de no tener custodia.
 contract FundingRegistry is AccessControl, ReentrancyGuard {
     /// @notice El llamante no es el dueño del passport ni tiene `RECORDER_ROLE`.
     error NotAuthorized();
@@ -23,6 +27,8 @@ contract FundingRegistry is AccessControl, ReentrancyGuard {
     error ZeroAmount();
     /// @notice Se pasó `address(0)` donde se requiere una dirección válida.
     error ZeroAddress();
+    /// @notice La dirección pasada como Passport no tiene código (no es un contrato).
+    error NotAContract();
     /// @notice No existe un registro con ese índice para ese `tokenId`.
     error RecordNotFound();
 
@@ -46,19 +52,24 @@ contract FundingRegistry is AccessControl, ReentrancyGuard {
     /// @param opportunityName Nombre de la convocatoria tal como lo declaró el founder.
     /// @param status Estado declarado de la aplicación.
     /// @param recordedAt Timestamp del bloque en que se registró.
+    /// @param author Quién registró: el dueño del passport o un `RECORDER_ROLE`. En storage y no solo en
+    ///        el evento, para que quien lea el historial sepa de quién es cada declaración.
     struct Application {
         string opportunityName;
         Status status;
         uint64 recordedAt;
+        address author;
     }
 
     /// @param amount Monto reportado, en la unidad mínima del token (wei / 6 decimales de USDC / etc).
     /// @param token Dirección del ERC-20 reportado; `address(0)` significa la moneda nativa de la red.
     /// @param recordedAt Timestamp del bloque en que se registró.
+    /// @param author Quién reportó: el dueño del passport o un `RECORDER_ROLE`.
     struct FundingReceived {
         uint256 amount;
         address token;
         uint64 recordedAt;
+        address author;
     }
 
     /// @notice Contrato ProjectPassport contra el que se valida la existencia y titularidad del tokenId.
@@ -85,6 +96,9 @@ contract FundingRegistry is AccessControl, ReentrancyGuard {
     /// @param admin_ Dirección que recibe `DEFAULT_ADMIN_ROLE` (puede otorgar `RECORDER_ROLE`).
     constructor(address passport_, address admin_) {
         if (passport_ == address(0) || admin_ == address(0)) revert ZeroAddress();
+        // Atrapa un typo en PASSPORT_ADDRESS al desplegar: sin esto el contrato queda immutable apuntando
+        // a una dirección muerta y toda escritura revierte para siempre.
+        if (passport_.code.length == 0) revert NotAContract();
         passport = IERC721(passport_);
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
     }
@@ -109,8 +123,13 @@ contract FundingRegistry is AccessControl, ReentrancyGuard {
 
         applicationId = _applications[tokenId].length;
         _applications[tokenId].push(
-            // forge-lint: disable-next-line(unsafe-typecast)
-            Application({opportunityName: opportunityName, status: status, recordedAt: uint64(block.timestamp)})
+            Application({
+                opportunityName: opportunityName,
+                status: status,
+                // forge-lint: disable-next-line(unsafe-typecast)
+                recordedAt: uint64(block.timestamp),
+                author: msg.sender
+            })
         );
         emit FundingApplicationRecorded(tokenId, applicationId, msg.sender, opportunityName, status);
     }
@@ -133,12 +152,22 @@ contract FundingRegistry is AccessControl, ReentrancyGuard {
         if (amount == 0) revert ZeroAmount();
 
         recordId = _funding[tokenId].length;
-        // forge-lint: disable-next-line(unsafe-typecast)
-        _funding[tokenId].push(FundingReceived({amount: amount, token: token, recordedAt: uint64(block.timestamp)}));
+        _funding[tokenId].push(
+            FundingReceived({
+                amount: amount,
+                token: token,
+                // forge-lint: disable-next-line(unsafe-typecast)
+                recordedAt: uint64(block.timestamp),
+                author: msg.sender
+            })
+        );
         emit FundingReceivedRecorded(tokenId, recordId, msg.sender, amount, token);
     }
 
     /// @notice Cantidad de aplicaciones registradas para un passport.
+    /// @dev OJO: los getters de este contrato NO prueban existencia. Un tokenId inexistente y uno existente
+    ///      sin registros devuelven lo mismo (0 / array vacío). Quien lea debe consultar `passport.ownerOf`
+    ///      primero si necesita distinguirlos.
     /// @param tokenId Id del Project Passport.
     /// @return Número de aplicaciones (0 si el tokenId no existe o no tiene registros).
     function applicationCount(uint256 tokenId) external view returns (uint256) {

@@ -10,12 +10,13 @@ resultó ser un superconjunto, así que extendí lo que había en vez de reescri
 
 | | |
 |---|---|
-| Tests | **35 pasan, 0 fallan** (antes: 24) |
-| Coverage `src/` | **100%** de líneas (84/84), statements (101/101), ramas (19/19) y funciones (22/22) |
+| Tests | **40 pasan, 0 fallan** (antes: 24) |
+| Coverage `src/` | **100%** de líneas (87/87), statements (107/107), ramas (22/22) y funciones (22/22) |
 | `forge build` | OK — solc 0.8.28, evm `paris`, optimizer 200 runs |
 | `forge fmt` | aplicado |
+| Auditoría | `/audit` con contexto fresco: **apto testnet, no mainnet**. A1/A2/A3/B1 corregidos; el resto documentado en `BLOCKERS.md` §4 |
 | Desplegado | **nada** — falta la URL del RPC de HSK |
-| Commits | `4c7d926`, `0eb133a` sobre `develop` |
+| Commits | `4c7d926`, `0eb133a`, `e88cceb` y la corrección post-auditoría, sobre `develop` |
 
 ## Tarea (a) — ProjectPassport.sol
 
@@ -102,11 +103,40 @@ contratos, sección **"lo que estos contratos NO hacen"** (sin custodia, sin KYC
 sin indexer, auto-reportado), cómo correr tests y coverage, tabla de variables de entorno, deploy con
 keystore, verificación en Blockscout y notas de diseño.
 
+## Tarea (g) — Auditoría con contexto fresco y correcciones
+
+**Hecha**, fuera del work order: `CLAUDE.md` la exige como fase del skill `ship`, y la hice antes de que
+despliegues en vez de después. Veredicto: **apto para HSK testnet como demo, no apto para mainnet**.
+
+Confirmó como sólido (leyendo el código de OZ 5.4.0, no de memoria): el soulbound no tiene fugas — incluida
+la ruta de `transferFrom` sobre un tokenId inexistente, que es la única que evadiría el guard de `_update`
+y termina en `ERC721NonexistentToken`; la ausencia de custodia de valor; la validación de existencia del
+tokenId en **todas** las escrituras; y la higiene de secretos (ningún `PRIVATE_KEY` ni dirección hardcodeada
+en `script/`).
+
+Corregido en esta sesión:
+
+| # | Hallazgo | Corrección |
+|---|---|---|
+| A1 | Una sola EOA concentraba minteo, admin y verificación | `ADMIN` separado de `OWNER` en los 3 scripts + aviso por consola si comparten dirección |
+| A2 | El `author` solo estaba en los eventos; los getters no decían quién escribió | `address author` a storage en los tres structs |
+| A3 | Un validator podía registrar y verificar su propio hito | `SelfVerification`: `m.author != msg.sender` |
+| B1 | Los constructores no validaban que el Passport tuviera código | `NotAContract` (`passport_.code.length == 0`) |
+
+Tests nuevos a raíz de los huecos que señaló: `transferFrom` sobre token inexistente, que
+`FundingRegistry` rechaza ETH (era la afirmación titular del contrato y no estaba probada), selector
+concreto en el fuzz de soulbound cuando el llamante es el dueño, autoría persistida, auto-verificación
+y constructor con una EOA como Passport.
+
+**Archivos:** `contracts/src/Milestones.sol`, `contracts/src/FundingRegistry.sol`,
+`contracts/script/*.s.sol`, `contracts/test/*.t.sol`, `web/lib/chain.ts`, `contracts/README.md`.
+
 ## Fuera del work order, pero hecho
 
 - **Instalé Foundry** (1.5.1-stable, binario oficial de Windows) en `%USERPROFILE%\.foundry\bin`. No estaba
   instalado en esta máquina pese a lo que decía `SESSION.md`. Para usarlo:
   `$env:PATH = "$env:USERPROFILE\.foundry\bin;$env:PATH"`.
-- **Verifiqué que el frontend no se rompe:** `web/lib/chain.ts` solo usa `ownerOf`, `tokenURI`,
-  `milestoneCount` y `getMilestone`, y el struct `Milestone` no cambió de forma. Ninguna de esas firmas se
-  tocó. El `FundingRegistry` no estaba integrado todavía en el front.
+- **Actualicé `web/lib/chain.ts`**, la única pieza del frontend acoplada al ABI: usa `ownerOf`, `tokenURI`,
+  `milestoneCount` y `getMilestone`. Las firmas no cambiaron, pero el struct `Milestone` ganó el campo
+  `author` en la corrección post-auditoría, así que ajusté el `parseAbi`, el tipo `PassportReport` y el
+  mapeo. El `FundingRegistry` todavía no está integrado en el front.

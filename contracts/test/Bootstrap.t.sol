@@ -118,9 +118,22 @@ contract BootstrapTest is Test {
         _mint();
         vm.assume(to != address(0));
         vm.prank(caller);
-        vm.expectRevert();
+        // El dueño está autorizado, así que llega hasta `_update` y debe frenar ahí con `Soulbound`.
+        // Un tercero frena antes, en el chequeo de aprobación de OZ.
+        if (caller == founder) vm.expectRevert(ProjectPassport.Soulbound.selector);
+        else vm.expectRevert();
         passport.transferFrom(founder, to, 1);
         assertEq(passport.ownerOf(1), founder);
+    }
+
+    /// @dev Único caso que evadiría el guard de `_update` (ahí `_ownerOf == 0`, como en un mint). OZ frena
+    ///      antes, en `_checkAuthorized`, así que no hay forma de mintear vía transfer.
+    function test_RevertWhen_TransferOfNonexistentToken() public {
+        vm.prank(founder);
+        vm.expectRevert();
+        passport.transferFrom(address(0), other, 777);
+        vm.expectRevert();
+        passport.ownerOf(777);
     }
 
     // ---------- Milestones ----------
@@ -145,6 +158,34 @@ contract BootstrapTest is Test {
         vm.prank(validator);
         milestones.addMilestone(id, "Registrado por el validator", HASH);
         assertEq(milestones.milestoneCount(id), 1);
+        // queda en storage quién lo escribió, no solo en el evento
+        assertEq(milestones.getMilestone(id, 0).author, validator);
+    }
+
+    function test_AuthorIsPersistedNotJustEmitted() public {
+        uint256 id = _mint();
+        vm.prank(founder);
+        milestones.addMilestone(id, "MVP", HASH);
+        assertEq(milestones.getMilestone(id, 0).author, founder);
+        assertEq(milestones.getMilestones(id)[0].author, founder);
+    }
+
+    /// @dev Separación de funciones: sin esto, una sola dirección con el rol podría registrar y atestiguar
+    ///      en el mismo bloque, y onchain sería indistinguible de una verificación independiente.
+    function test_RevertWhen_ValidatorVerifiesItsOwnMilestone() public {
+        uint256 id = _mint();
+        vm.startPrank(validator);
+        milestones.addMilestone(id, "Me lo registro yo", HASH);
+        vm.expectRevert(Milestones.SelfVerification.selector);
+        milestones.verifyMilestone(id, 0);
+        vm.stopPrank();
+
+        // otro validator sí puede verificarlo
+        vm.prank(admin);
+        milestones.grantRole(validatorRole, other);
+        vm.prank(other);
+        milestones.verifyMilestone(id, 0);
+        assertGt(milestones.getMilestone(id, 0).verifiedAt, 0);
     }
 
     function test_GetMilestonesReturnsFullHistory() public {
@@ -274,6 +315,15 @@ contract BootstrapTest is Test {
         new Milestones(address(passport), validator, address(0));
     }
 
+    /// @dev Atrapa un typo en PASSPORT_ADDRESS al desplegar: sin esto el contrato queda immutable
+    ///      apuntando a una dirección muerta y toda escritura revierte para siempre.
+    function test_RevertWhen_PassportIsNotAContract() public {
+        vm.expectRevert(Milestones.NotAContract.selector);
+        new Milestones(other, validator, admin);
+        vm.expectRevert(FundingRegistry.NotAContract.selector);
+        new FundingRegistry(other, admin);
+    }
+
     function testFuzz_OnlyValidatorVerifies(address caller) public {
         vm.assume(caller != validator);
         uint256 id = _mint();
@@ -299,6 +349,7 @@ contract BootstrapTest is Test {
         assertEq(a.opportunityName, "Grant X");
         assertEq(uint8(a.status), uint8(FundingRegistry.Status.Submitted));
         assertEq(a.recordedAt, block.timestamp);
+        assertEq(a.author, founder);
 
         vm.prank(founder);
         assertEq(registry.recordFundingApplication(id, "Grant Y", FundingRegistry.Status.Rejected), 1);
@@ -313,6 +364,8 @@ contract BootstrapTest is Test {
         vm.prank(other);
         registry.recordFundingApplication(id, "Grant Z", FundingRegistry.Status.Pending);
         assertEq(registry.applicationCount(id), 1);
+        // el historial deja claro que lo escribió un tercero, no el founder
+        assertEq(registry.getApplication(id, 0).author, other);
     }
 
     function test_RecordFundingReceived() public {
@@ -338,6 +391,18 @@ contract BootstrapTest is Test {
         assertEq(registry.getAllFundingReceived(id)[1].token, address(0));
 
         // el registro no mueve dinero: el contrato nunca retiene saldo
+        assertEq(address(registry).balance, 0);
+        assertEq(registry.getFundingReceived(id, 0).author, founder);
+    }
+
+    /// @dev La afirmación titular del contrato: no puede aceptar valor. Sin `receive`/`fallback`/`payable`,
+    ///      cualquier envío de ETH falla. (Un `selfdestruct` de un tercero sí puede forzarle saldo; eso no
+    ///      se puede evitar en la EVM y está documentado en el NatSpec del contrato.)
+    function test_RegistryRejectsEther() public {
+        vm.deal(founder, 1 ether);
+        vm.prank(founder);
+        (bool ok,) = address(registry).call{value: 1 ether}("");
+        assertFalse(ok, "FundingRegistry no debe aceptar ETH");
         assertEq(address(registry).balance, 0);
     }
 

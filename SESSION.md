@@ -1,7 +1,7 @@
 ﻿# SESSION — estado vivo (actualizar con /handoff)
 
 ## Última actualización
-2026-09-19 (sesión autónoma de contratos) — capa onchain ampliada al spec completo: roles, historial legible y financiación reportada. 35 tests, 100% coverage en `src/`. Nada desplegado todavía. Ver `SUMMARY.md`, `PROGRESS.md`, `DECISIONS.md`, `BLOCKERS.md`.
+2026-09-19 (sesión autónoma de contratos) — capa onchain ampliada al spec completo: roles, historial legible y financiación reportada. Auditada con contexto fresco (apto testnet, no mainnet) y corregidos A1/A2/A3/B1. **40 tests**, 100% coverage en `src/`. Nada desplegado todavía. Ver `SUMMARY.md`, `PROGRESS.md`, `DECISIONS.md`, `BLOCKERS.md`.
 
 ## Hecho
 - `.claude/` completo, CLAUDE.md, AGENTS.md, .mcp.json.
@@ -15,7 +15,8 @@
 - Chain: contratos en HSK testnet 133 (mirror a 177 solo si sobra tiempo); x402 en Base Sepolia (opción A). Spike de "todo en HSK" solo si sobra tiempo.
 - Exactamente 3 contratos; FundingRegistry es el recortable. ~~`recordFundingReceived` fuera del MVP~~ → **implementado** (lo pedía el spec; no mueve dinero, solo registra).
 - Passport: el founder mintea el suyo; el owner puede mintear en su nombre.
-- Milestones: el dueño del passport **o un `VALIDATOR_ROLE`** agrega (cambió: antes solo el dueño); solo `VALIDATOR_ROLE` verifica. El evento `MilestoneAdded` lleva `author` para que quede auditable quién escribió. **Revisar si querés volver al modelo estricto antes de desplegar** (ver `SUMMARY.md`).
+- Milestones: el dueño del passport **o un `VALIDATOR_ROLE`** agrega (cambió: antes solo el dueño); solo `VALIDATOR_ROLE` verifica, y **no puede verificar un hito que él mismo registró**. El `author` va en storage (no solo en el evento) para que quede auditable quién escribió cada declaración. **Revisar si querés volver al modelo estricto antes de desplegar** (ver `SUMMARY.md`).
+- Deploy: `ADMIN` separado de `OWNER` y `VALIDATOR`. Si comparten clave, quien la filtre puede fabricar un historial verificado de cero. La clave privada nunca va al `.env`: keystore (`cast wallet import bootstrap-deployer --interactive`) + `--account`.
 - `AccessControl` en vez de `Ownable` donde hay verificación: los roles pasan a multisig en producción sin redesplegar.
 - Registros inmutables: un cambio de estado de una aplicación es una entrada nueva, no un update.
 - El frontend nunca toca el LLM: todo por `/api/agent`.

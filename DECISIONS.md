@@ -73,3 +73,31 @@ Una línea de justificación cada una. Si alguna no te convence, es reversible.
     las direcciones en formato `CLAVE=valor` para pegar directo en el `.env` del frontend.
 24. **No creé `contracts/.env.example`**: mis permisos bloquean escribir en esa ruta. Las variables quedaron
     documentadas en una tabla en `contracts/README.md`. Ver `BLOCKERS.md`.
+
+## Correcciones tras la auditoría con contexto fresco
+
+Corrí `/audit` sobre los contratos ya terminados. Veredicto: apto para testnet, no para mainnet. Estas son
+las correcciones que apliqué; las que decidí **no** aplicar están en `BLOCKERS.md` §4 con su justificación.
+
+25. **`address author` ahora vive en storage, no solo en el evento** (`Milestone`, `Application`,
+    `FundingReceived`). Como un `VALIDATOR_ROLE` puede escribir en el historial de un proyecto ajeno
+    (decisión 8), sin esto los getters que consume el frontend devolvían la entrada sin decir de quién era
+    la declaración. Costo: un slot extra por hito. Mantuve los timestamps en `uint64` en vez de bajarlos a
+    `uint48` para que el struct empaque en un solo slot — el ahorro de gas no compensa usar un tipo raro en
+    una demo de testnet.
+26. **Un validator no puede verificar un hito que él mismo registró** (`SelfVerification`). Sin esto, una
+    sola dirección con el rol podía registrar y atestiguar en el mismo bloque, y onchain era indistinguible
+    de una verificación independiente — que es exactamente la propiedad que el producto vende. Si hace
+    falta que uno registre y otro verifique, se otorga el rol a dos direcciones.
+27. **Separé `ADMIN` de `OWNER` en los scripts de deploy** (`ADMIN` por defecto = `OWNER`, para no romper
+    nada). `DEFAULT_ADMIN_ROLE` puede auto-otorgarse `VALIDATOR_ROLE` y `RECORDER_ROLE`: con las tres
+    claves en la misma EOA, filtrarla alcanza para fabricar un historial "verificado" en cuatro
+    transacciones. El script combinado ahora avisa por consola si detecta que comparten dirección.
+28. **Los constructores rechazan un Passport sin código** (`NotAContract`). Un typo en `PASSPORT_ADDRESS`
+    al desplegar uno por uno dejaba el contrato `immutable` apuntando a una dirección muerta, con toda
+    escritura revirtiendo para siempre.
+29. **Mantuve `nonReentrant` en `recordFundingReceived`** pese a que el auditor lo marcó como innecesario
+    (no hay llamada externa después de los efectos) e inconsistente. Tu spec lo pedía explícitamente:
+    "considerar reentrancy... defensivo, no over-engineering". No es una vulnerabilidad, solo gas.
+30. **Actualicé `web/lib/chain.ts`** al nuevo struct `Milestone` (campo `author`), que era la única pieza
+    del frontend acoplada al ABI de los contratos.

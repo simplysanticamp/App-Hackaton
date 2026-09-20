@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {Deploy} from "../script/Deploy.s.sol";
 import {ProjectPassport} from "../src/ProjectPassport.sol";
 import {Milestones} from "../src/Milestones.sol";
@@ -79,6 +79,9 @@ contract IntegrationTest is Test {
 
         assertEq(history.length, 1);
         assertGt(history[0].verifiedAt, 0, "el hito figura verificado");
+        // La tesis del producto: onchain consta que lo declaró el founder y que lo atestiguó otro.
+        assertEq(history[0].author, founder, "lo declaro el founder");
+        assertEq(apps[0].author, founder);
 
         assertEq(apps.length, 2, "historial completo: enviada y aceptada");
         assertEq(uint8(apps[0].status), uint8(FundingRegistry.Status.Submitted));
