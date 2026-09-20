@@ -3,8 +3,18 @@
 ## Última actualización
 2026-09-20 — **contratos desplegados en HSK testnet (133)** y verificados leyendo la cadena. Hubo que
 desplegar dos veces: el primer intento quedó con los roles en una dirección sin clave privada (ver
-Decisiones). Scripts arreglados, **40 tests** en verde, `develop` pusheado a `origin`. Detalle del
-incidente en `DECISIONS.md` 31-36. Ver también `SUMMARY.md`, `PROGRESS.md`, `BLOCKERS.md`.
+Decisiones). Scripts arreglados, `develop` pusheado a `origin`. Detalle del incidente en `DECISIONS.md` 31-36.
+Ver también `SUMMARY.md`, `PROGRESS.md`, `BLOCKERS.md`.
+
+2026-09-20 (Santiago) — **el código de contratos cambió tras el deploy: las direcciones de abajo son de la
+versión vieja.** Se cerraron M1 (`revokeVerification`, campo `revokedAt`), M2 (`mintPassport` exige
+`ipfs://`) y `Ownable2Step` en el Passport (`DECISIONS.md` 37-38). **47 tests**, 0 avisos del linter.
+Falta redesplegar (Juan, dueño de la wallet `bootstrap-deployer`). Backend: x402 solo paga USDC de Base
+Sepolia; `chain.ts` valida chain id 133 y lee los últimos 50 hitos (`milestoneTotal`).
+**Supabase conectado**: tabla `opportunities` con RLS de solo lectura, verificada con
+`web/scripts/check-supabase.mjs`. La tabla tiene **0 filas** (el agente usa las 3 filas DEMO locales).
+El backend lee con `SUPABASE_PUBLISHABLE_KEY` (o `SUPABASE_SERVICE_KEY` si existe); `SUPABASE_URL` debe ser
+solo el dominio, sin `/rest/v1/`.
 
 ## Desplegado — HSK testnet, chain 133 (sin verificar en Blockscout)
 ```
@@ -54,11 +64,10 @@ marcadas `NO USAR`.
 2. Exportar ABIs al front e integrar `FundingRegistry`, que todavía no está conectado y ya tiene lecturas
    útiles para el dashboard (`getApplications`, `getAllFundingReceived`).
 3. Probar el pipeline del agente con `ANTHROPIC_API_KEY` real (hoy solo probado con LLM simulado).
-4. Curar 2-3 convocatorias reales en Supabase (hoy son 3 filas DEMO).
+4. Curar 2-3 convocatorias reales en Supabase (la tabla existe y está vacía; cargar con `is_demo=false` solo si el enlace es el oficial). Sugerencia: una colombiana (iNNpulsa/MinCiencias/Ruta N) y una web3 (EF/Gitcoin/Optimism).
 5. Frontend (dashboard, chat, wallet) — el usuario lo dejó para después. Definir fuente premium para
    agent-pays-for-data. Opcional: 2ª dirección con `VALIDATOR_ROLE` para demostrar rotación en vivo.
-6. Pendientes bajos de la auditoría: abortar pago x402 si asset != USDC, lectura acotada de fuente premium,
-   Ownable2Step, `.gitignore` con `!.env.example`, slither y tope de gasto en Anthropic antes de mainnet.
+6. Pendientes bajos de la auditoría: lectura acotada de la fuente premium, `.gitignore` con `!.env.example`, slither y tope de gasto en Anthropic antes de mainnet.
 
 ## Bloqueos / pendientes del usuario
 - Deadline real. URL real del **explorer de HSK testnet**: la del doc del hackathon no resuelve (§1).
