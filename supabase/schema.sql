@@ -1,4 +1,4 @@
--- Convocatorias curadas. Solo el servidor (service key) lee esta tabla.
+-- Convocatorias curadas. Datos públicos: lectura abierta con la clave publicable, escritura solo con la de servicio.
 create table if not exists opportunities (
   id text primary key,
   name text not null,
@@ -13,6 +13,10 @@ create table if not exists opportunities (
 );
 
 alter table opportunities enable row level security;
--- Sin políticas: el acceso público queda bloqueado; el backend usa la service key.
+-- Solo SELECT para anon/authenticated. Sin políticas de insert/update/delete: nadie escribe con la clave
+-- publicable. Las filas se cargan desde el panel de Supabase o con la clave de servicio.
+drop policy if exists "opportunities_public_read" on opportunities;
+create policy "opportunities_public_read" on opportunities
+  for select to anon, authenticated using (true);
 
 -- Al curar una convocatoria REAL: is_demo = false y official_url debe ser el link oficial.
