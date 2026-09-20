@@ -5,11 +5,13 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ERC721URIStorage} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 /// @title ProjectPassport
 /// @notice NFT soulbound (ERC-721 no transferible) que certifica un proyecto. Solo se puede mintear.
-/// @dev Implementa ERC-5192 (`locked`). El metadata vive en `metadataURI` (IPFS/URL), nunca onchain.
-contract ProjectPassport is ERC721URIStorage, Ownable {
+/// @dev El ownership usa `Ownable2Step`: transferirlo exige que el nuevo owner lo acepte, así un typo en la
+///      dirección no deja el contrato sin dueño. Implementa ERC-5192 (`locked`). El metadata vive en `metadataURI` (IPFS/URL), nunca onchain.
+contract ProjectPassport is ERC721URIStorage, Ownable2Step {
     /// @notice El token es soulbound: cualquier transferencia, aprobación o quema revierte con este error.
     error Soulbound();
     /// @notice El llamante no es el founder ni el owner del contrato.

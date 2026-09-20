@@ -90,6 +90,22 @@ contract BootstrapTest is Test {
         }
     }
 
+    /// @dev Ownable2Step: transferir a una dirección equivocada no pierde el contrato, porque hay que aceptar.
+    function test_OwnershipTransferNeedsAcceptance() public {
+        vm.prank(admin);
+        passport.transferOwnership(other);
+        assertEq(passport.owner(), admin, "sigue siendo admin hasta que other acepte");
+        assertEq(passport.pendingOwner(), other);
+
+        vm.prank(founder);
+        vm.expectRevert();
+        passport.acceptOwnership();
+
+        vm.prank(other);
+        passport.acceptOwnership();
+        assertEq(passport.owner(), other);
+    }
+
     function test_RevertWhen_MintToZero() public {
         vm.prank(admin);
         vm.expectRevert(ProjectPassport.ZeroAddress.selector);
