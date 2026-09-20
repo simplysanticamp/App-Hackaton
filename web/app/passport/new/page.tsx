@@ -22,6 +22,7 @@ function MintForm() {
   const validUri = /^ipfs:\/\/\S+$/.test(uri);
   const validMeta = meta.name.trim().length >= 3 && meta.description.trim().length >= 10 && meta.category.trim().length >= 2;
   const canSubmit = manual ? validUri : validMeta;
+  const busy = pinning || isPending || receipt.isLoading;
 
   async function submit() {
     if (!address || !passportAddress) return;
@@ -56,78 +57,94 @@ function MintForm() {
 
   return (
     <form
-      className="space-y-3"
+      className="space-y-6"
       onSubmit={(e) => {
         e.preventDefault();
         if (canSubmit) void submit();
       }}
     >
       {manual ? (
-        <label className="block text-sm">
-          URI de metadata (IPFS)
+        <div className="space-y-1">
+          <label className="label" htmlFor="uri">URI de metadata (IPFS)</label>
           <input
-            className="mt-1 w-full rounded border border-foreground/20 bg-transparent p-2 font-mono text-sm"
+            id="uri"
+            className="field mono"
             placeholder="ipfs://<cid>"
             value={uri}
             onChange={(e) => setUri(e.target.value.trim())}
           />
-        </label>
+        </div>
       ) : (
         <>
-          <input
-            className="w-full rounded border border-foreground/20 bg-transparent p-2 text-sm"
-            placeholder="Nombre del proyecto"
-            maxLength={100}
-            value={meta.name}
-            onChange={(e) => setMeta({ ...meta, name: e.target.value })}
-          />
-          <textarea
-            className="w-full rounded border border-foreground/20 bg-transparent p-2 text-sm"
-            rows={3}
-            placeholder="Descripción (mínimo 10 caracteres)"
-            maxLength={1000}
-            value={meta.description}
-            onChange={(e) => setMeta({ ...meta, description: e.target.value })}
-          />
-          <input
-            className="w-full rounded border border-foreground/20 bg-transparent p-2 text-sm"
-            placeholder="Categoría (ej. climate, fintech, educación)"
-            maxLength={50}
-            value={meta.category}
-            onChange={(e) => setMeta({ ...meta, category: e.target.value })}
-          />
+          <div className="space-y-1">
+            <label className="label" htmlFor="p-name">Nombre del proyecto</label>
+            <input id="p-name" className="field" maxLength={100} value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} />
+          </div>
+          <div className="space-y-1">
+            <label className="label" htmlFor="p-desc">Descripción</label>
+            <textarea
+              id="p-desc"
+              className="field"
+              rows={4}
+              maxLength={1000}
+              placeholder="Mínimo 10 caracteres"
+              value={meta.description}
+              onChange={(e) => setMeta({ ...meta, description: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="label" htmlFor="p-cat">Categoría</label>
+            <input
+              id="p-cat"
+              className="field"
+              maxLength={50}
+              placeholder="Ej. climate, fintech, educación"
+              value={meta.category}
+              onChange={(e) => setMeta({ ...meta, category: e.target.value })}
+            />
+          </div>
         </>
       )}
-      <p className="text-xs opacity-70">
-        Esta información se guarda en IPFS, no onchain: el CID fija el contenido, así que nadie puede reescribirlo
-        después de que un financiador lo revise. Es pública y permanente.
-      </p>
-      <p className="text-xs opacity-70">
-        El passport certifica evidencia, no identidad (sin KYC). Es soulbound: no se puede transferir.
-      </p>
-      <button
-        className="rounded bg-foreground px-4 py-2 text-sm text-background disabled:opacity-50"
-        disabled={!canSubmit || pinning || isPending || receipt.isLoading}
-        type="submit"
-      >
-        {pinning ? "Subiendo a IPFS…" : "Mintear mi Passport"}
-      </button>
-      <button type="button" className="ml-3 text-xs underline opacity-70" onClick={() => setManual(!manual)}>
-        {manual ? "Usar formulario" : "Ya tengo un ipfs:// propio"}
-      </button>
-      {pinError && <p className="text-xs text-red-500">{pinError}</p>}
-      <TxStatus hash={hash} pending={isPending || receipt.isLoading} error={error ?? receipt.error} />
+
+      <ul className="space-y-1 border-t border-rule pt-4 text-[13px] text-muted">
+        <li>Esta información se guarda en IPFS, no onchain. El CID fija el contenido: nadie puede reescribirlo después de que un financiador lo revise. Es pública y permanente.</li>
+        <li>El passport certifica evidencia, no identidad (sin KYC). Es soulbound: no se puede transferir.</li>
+      </ul>
+
+      <div className="flex flex-wrap items-center gap-4">
+        <button className="btn" disabled={!canSubmit || busy} type="submit">
+          {pinning ? "Subiendo a IPFS…" : isPending ? "Firma en tu wallet…" : receipt.isLoading ? "Confirmando…" : "Mintear mi passport"}
+        </button>
+        <button type="button" className="link text-[13px] text-muted" onClick={() => setManual(!manual)}>
+          {manual ? "Usar el formulario" : "Ya tengo un ipfs:// propio"}
+        </button>
+      </div>
+      {pinError && <p role="alert" className="notice notice-error">{pinError}</p>}
+      <TxStatus
+        hash={hash}
+        signing={isPending}
+        confirming={receipt.isLoading}
+        confirmed={receipt.isSuccess}
+        error={error ?? receipt.error}
+      />
     </form>
   );
 }
 
 export default function NewPassportPage() {
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-4 p-6">
-      <h1 className="text-2xl font-semibold">Crear Project Passport</h1>
-      <NetworkGuard>
-        <MintForm />
-      </NetworkGuard>
+    <main className="mx-auto w-full max-w-5xl px-5 pb-16 pt-10 sm:pt-14">
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-16">
+        <div>
+          <h1 className="display text-[38px] sm:text-[46px]">Crear Project Passport</h1>
+          <p className="mt-5 max-w-[42ch] text-muted">
+            El passport es tu registro onchain. Cada hito que agregues queda certificado con el hash de su evidencia.
+          </p>
+        </div>
+        <NetworkGuard>
+          <MintForm />
+        </NetworkGuard>
+      </div>
     </main>
   );
 }

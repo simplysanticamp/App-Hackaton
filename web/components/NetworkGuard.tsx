@@ -9,32 +9,34 @@ import { WalletButton } from "./WalletButton";
 /** Exige contratos configurados, wallet conectada y red HSK testnet antes de mostrar a los hijos. */
 export function NetworkGuard({ children }: { children: ReactNode }) {
   const { isConnected, chainId } = useConnection();
-  const { switchChain, isPending } = useSwitchChain();
+  const { switchChain, isPending, error } = useSwitchChain();
 
   if (!contractsConfigured) {
     return (
-      <p className="rounded border border-amber-500/50 p-3 text-sm">
+      <p className="notice">
         Contratos no configurados: faltan NEXT_PUBLIC_PASSPORT_ADDRESS y NEXT_PUBLIC_MILESTONES_ADDRESS.
       </p>
     );
   }
   if (!isConnected) {
     return (
-      <div className="space-y-2">
-        <p className="text-sm opacity-70">Conecta tu wallet para continuar.</p>
+      <div className="flex flex-wrap items-center gap-4 border-y border-rule py-4">
+        <p className="text-muted">Para firmar en la cadena necesitas conectar tu wallet.</p>
         <WalletButton />
       </div>
     );
   }
   if (chainId !== hskTestnet.id) {
     return (
-      <button
-        className="rounded bg-foreground px-3 py-2 text-sm text-background disabled:opacity-50"
-        disabled={isPending}
-        onClick={() => switchChain({ chainId: hskTestnet.id })}
-      >
-        Cambiar a HSK Chain testnet (133)
-      </button>
+      <div className="space-y-2 border-y border-rule py-4">
+        <p className="text-muted">
+          Tu wallet está en otra red. Los contratos viven en {hskTestnet.name} (chain {hskTestnet.id}).
+        </p>
+        <button className="btn" disabled={isPending} onClick={() => switchChain({ chainId: hskTestnet.id })}>
+          {isPending ? "Confirma en tu wallet…" : `Cambiar a ${hskTestnet.name}`}
+        </button>
+        {error && <p role="alert" className="text-xs text-danger">{error.message.slice(0, 120)}</p>}
+      </div>
     );
   }
   return <>{children}</>;

@@ -4,7 +4,6 @@ import { use, useState } from "react";
 import { useConnection, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { NetworkGuard } from "@/components/NetworkGuard";
 import { TxStatus } from "@/components/TxStatus";
-import { short } from "@/components/WalletButton";
 import {
   APPLICATION_STATUS,
   fundingRegistryAbi,
@@ -17,7 +16,40 @@ import {
 import { hskTestnet } from "@/lib/chains";
 import { hashEvidence } from "@/lib/evidence";
 
-const fmt = (ts: bigint | number) => new Date(Number(ts) * 1000).toLocaleString();
+const date = (ts: bigint | number) =>
+  new Date(Number(ts) * 1000).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
+const shortHash = (h: string) => `${h.slice(0, 10)}…${h.slice(-6)}`;
+
+function Status({ verified, revoked }: { verified: boolean; revoked: boolean }) {
+  if (verified) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-verified">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M2 7.5 5.5 11 12 3" />
+        </svg>
+        Verificado
+      </span>
+    );
+  }
+  if (revoked) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-danger">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 3l8 8M11 3l-8 8" />
+        </svg>
+        Verificación revocada
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-muted">
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.5">
+        <circle cx="7" cy="7" r="4.5" />
+      </svg>
+      Sin verificar
+    </span>
+  );
+}
 
 function AddMilestone({ tokenId, onDone }: { tokenId: bigint; onDone: () => void }) {
   const [description, setDescription] = useState("");
@@ -27,8 +59,8 @@ function AddMilestone({ tokenId, onDone }: { tokenId: bigint; onDone: () => void
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
 
-  const done = receipt.isSuccess;
   const canSubmit = description.trim().length > 0 && (file || text.trim().length > 0);
+  const busy = hashing || isPending || receipt.isLoading;
 
   async function submit() {
     if (!milestonesAddress) return;
@@ -46,37 +78,54 @@ function AddMilestone({ tokenId, onDone }: { tokenId: bigint; onDone: () => void
   }
 
   return (
-    <section className="space-y-3 rounded border border-foreground/20 p-4">
-      <h2 className="font-semibold">Registrar hito</h2>
-      <input
-        className="w-full rounded border border-foreground/20 bg-transparent p-2 text-sm"
-        placeholder="Descripción corta (máx. 280 bytes)"
-        maxLength={140}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-      />
-      <textarea
-        className="w-full rounded border border-foreground/20 bg-transparent p-2 text-sm"
-        rows={3}
-        placeholder="Evidencia (texto) — o adjunta un archivo abajo"
-        value={text}
-        disabled={!!file}
-        onChange={(e) => setText(e.target.value)}
-      />
-      <input type="file" className="text-xs" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-      <p className="text-xs opacity-70">Solo se publica el hash keccak256 de la evidencia, nunca el contenido.</p>
-      <button
-        className="rounded bg-foreground px-4 py-2 text-sm text-background disabled:opacity-50"
-        disabled={!canSubmit || hashing || isPending || receipt.isLoading}
-        onClick={submit}
-      >
-        Registrar hito onchain
+    <section className="space-y-4">
+      <div className="flex items-baseline gap-3 border-b border-rule pb-2">
+        <h2 className="display text-[26px]">Registrar un hito</h2>
+      </div>
+      <div className="space-y-1">
+        <label className="label" htmlFor="ms-desc">Descripción</label>
+        <input
+          id="ms-desc"
+          className="field"
+          placeholder="Qué se logró, en una frase"
+          maxLength={140}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
+      <div className="space-y-1">
+        <label className="label" htmlFor="ms-text">Evidencia</label>
+        <textarea
+          id="ms-text"
+          className="field"
+          rows={3}
+          placeholder="Texto de la evidencia, o adjunta un archivo abajo"
+          value={text}
+          disabled={!!file}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <div className="flex items-center gap-3 text-[13px]">
+          <input type="file" aria-label="Archivo de evidencia" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          {file && (
+            <button type="button" className="link text-muted" onClick={() => setFile(null)}>Quitar archivo</button>
+          )}
+        </div>
+      </div>
+      <p className="text-[13px] text-muted">
+        Solo se publica el hash keccak256 de la evidencia. El contenido no sale de tu navegador.
+      </p>
+      <button className="btn" disabled={!canSubmit || busy} onClick={submit}>
+        {busy ? "Registrando…" : "Registrar hito onchain"}
       </button>
-      <TxStatus hash={hash} pending={isPending || receipt.isLoading} error={error ?? receipt.error} />
-      {done && (
-        <button className="text-xs underline" onClick={() => { onDone(); reset(); }}>
-          Hito confirmado — actualizar lista
-        </button>
+      <TxStatus
+        hash={hash}
+        signing={isPending}
+        confirming={receipt.isLoading}
+        confirmed={receipt.isSuccess}
+        error={error ?? receipt.error}
+      />
+      {receipt.isSuccess && (
+        <button className="btn btn-quiet" onClick={() => { onDone(); reset(); }}>Actualizar la lista</button>
       )}
     </section>
   );
@@ -101,80 +150,123 @@ export default function PassportPage({ params }: PageProps<"/passport/[id]">) {
     query: { enabled: valid && !!fundingRegistryAddress },
   });
 
-  if (!valid) return <main className="p-6">Id de passport inválido.</main>;
+  const shell = (children: React.ReactNode) => (
+    <main className="mx-auto w-full max-w-5xl px-5 pb-16 pt-10">{children}</main>
+  );
+
+  if (!valid) return shell(<p className="notice notice-error">El id del passport debe ser un número.</p>);
   if (!passportAddress || !milestonesAddress) {
-    return <main className="p-6 text-sm">Contratos no configurados (NEXT_PUBLIC_PASSPORT_ADDRESS / NEXT_PUBLIC_MILESTONES_ADDRESS).</main>;
+    return shell(<p className="notice">Contratos no configurados (NEXT_PUBLIC_PASSPORT_ADDRESS / NEXT_PUBLIC_MILESTONES_ADDRESS).</p>);
   }
-  if (owner.isLoading) return <main className="p-6 text-sm opacity-70">Leyendo la cadena…</main>;
+  if (owner.isLoading) return shell(<p className="working label">Leyendo la cadena…</p>);
   if (owner.error || !owner.data) {
-    return <main className="p-6 text-sm">Passport #{id} no encontrado en HSK testnet.</main>;
+    return shell(
+      <div className="space-y-2">
+        <h1 className="display text-[38px]">Passport Nº {id}</h1>
+        <p className="text-muted">No existe en {hskTestnet.name}. Revisa el número o crea uno nuevo.</p>
+      </div>,
+    );
   }
 
   const isOwner = !!address && address.toLowerCase() === owner.data.toLowerCase();
   const list = milestones.data ?? [];
+  const verifiedCount = list.filter((m) => m.verifiedAt !== 0n && m.revokedAt === 0n).length;
 
-  return (
-    <main className="mx-auto w-full max-w-3xl space-y-6 p-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Project Passport #{id}</h1>
-        <p className="text-sm">Founder: <span className="font-mono">{owner.data}</span></p>
-        <p className="break-all text-sm">Metadata: <span className="font-mono">{uri.data ?? "…"}</span></p>
-        <p className="text-xs opacity-70">
-          Soulbound. Certifica evidencia, no identidad. Los hitos verificados los atesta un validator independiente del founder.
+  return shell(
+    <div className="space-y-12">
+      <header className="grid gap-6 border-b border-rule-strong pb-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]" style={{ borderColor: "var(--rule-strong)" }}>
+        <div>
+          <p className="label">Project Passport</p>
+          <h1 className="display text-[64px] sm:text-[84px]">Nº {id}</h1>
+        </div>
+        <dl className="space-y-4 self-end">
+          <div>
+            <dt className="label">Founder</dt>
+            <dd className="mono break-all">{owner.data}</dd>
+          </div>
+          <div>
+            <dt className="label">Metadata</dt>
+            <dd className="mono break-all">{uri.data ?? "…"}</dd>
+          </div>
+          <div>
+            <dt className="label">Hitos</dt>
+            <dd>
+              {list.length} registrados · {verifiedCount} verificados
+            </dd>
+          </div>
+        </dl>
+        <p className="text-[13px] text-muted lg:col-span-2">
+          Soulbound: no se puede transferir. Certifica evidencia, no identidad. Un hito solo cuenta como verificado
+          cuando lo atesta un validator distinto de quien lo registró.
         </p>
       </header>
 
       <section className="space-y-2">
-        <h2 className="font-semibold">Hitos ({list.length})</h2>
-        {milestones.isLoading && <p className="text-sm opacity-70">Cargando…</p>}
-        {!milestones.isLoading && list.length === 0 && <p className="text-sm opacity-70">Aún no hay hitos.</p>}
-        {list.map((m, i) => {
-          const revoked = m.revokedAt !== 0n;
-          const verified = m.verifiedAt !== 0n && !revoked;
-          return (
-            <article key={i} className="space-y-1 rounded border border-foreground/20 p-3 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">#{i} {m.description}</span>
-                <span
-                  className={`rounded px-2 py-0.5 text-xs ${
-                    verified ? "bg-green-500/20" : revoked ? "bg-red-500/20" : "bg-foreground/10"
-                  }`}
-                >
-                  {verified ? "Verificado" : revoked ? "Verificación revocada" : "Sin verificar"}
-                </span>
-              </div>
-              <p className="break-all font-mono text-xs opacity-70">hash: {m.evidenceHash}</p>
-              <p className="text-xs opacity-70">
-                Registrado {fmt(m.createdAt)} por {short(m.author)}
-                {m.author.toLowerCase() === owner.data.toLowerCase() ? " (founder)" : " (validator)"}
-                {m.verifiedAt !== 0n && ` · verificado ${fmt(m.verifiedAt)}`}
-                {revoked && ` · revocado ${fmt(m.revokedAt)}`}
-              </p>
-            </article>
-          );
-        })}
+        <div className="flex items-baseline gap-3 border-b border-rule pb-2">
+          <h2 className="display text-[26px]">Hitos</h2>
+        </div>
+        {milestones.isLoading && <p className="working label py-3">Cargando hitos…</p>}
+        {milestones.error && <p className="notice notice-error">No se pudieron leer los hitos.</p>}
+        {!milestones.isLoading && !milestones.error && list.length === 0 && (
+          <p className="py-4 text-muted">Este passport todavía no tiene hitos registrados.</p>
+        )}
+        <ol>
+          {list.map((m, i) => {
+            const revoked = m.revokedAt !== 0n;
+            const verified = m.verifiedAt !== 0n && !revoked;
+            const byFounder = m.author.toLowerCase() === owner.data.toLowerCase();
+            return (
+              <li key={i} className="grid grid-cols-[2.25rem_1fr] gap-x-3 gap-y-1 border-b border-rule py-4 sm:grid-cols-[3rem_1fr_auto]">
+                <span className="mono pt-0.5 text-muted">{String(i + 1).padStart(2, "0")}</span>
+                <div className="min-w-0 space-y-1">
+                  <p className={`text-[16px] font-medium ${revoked ? "text-muted line-through" : ""}`}>{m.description}</p>
+                  <p className="mono break-all text-muted" title={m.evidenceHash}>
+                    <span className="label mr-2">hash</span>
+                    {shortHash(m.evidenceHash)}
+                  </p>
+                  <p className="text-[12.5px] text-muted">
+                    Registrado el {date(m.createdAt)} por {byFounder ? "el founder" : "un validator"}
+                    {m.verifiedAt !== 0n && ` · verificado el ${date(m.verifiedAt)}`}
+                    {revoked && ` · revocado el ${date(m.revokedAt)}`}
+                  </p>
+                </div>
+                <p className="col-start-2 text-[13px] font-medium sm:col-start-3 sm:text-right">
+                  <Status verified={verified} revoked={revoked} />
+                </p>
+              </li>
+            );
+          })}
+        </ol>
       </section>
 
       {fundingRegistryAddress && (
         <section className="space-y-2">
-          <h2 className="font-semibold">Aplicaciones a fondos ({apps.data?.length ?? 0})</h2>
-          {(apps.data ?? []).map((a, i) => (
-            <p key={i} className="rounded border border-foreground/20 p-3 text-sm">
-              {a.opportunityName} — {APPLICATION_STATUS[a.status] ?? `estado ${a.status}`}
-              <span className="ml-2 text-xs opacity-70">{fmt(a.recordedAt)}</span>
-            </p>
-          ))}
+          <div className="flex items-baseline gap-3 border-b border-rule pb-2">
+            <h2 className="display text-[26px]">Aplicaciones a fondos</h2>
+          </div>
+          {apps.data && apps.data.length === 0 && <p className="py-4 text-muted">Sin aplicaciones registradas.</p>}
+          <ul>
+            {(apps.data ?? []).map((a, i) => (
+              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-rule py-3">
+                <span className="font-medium">{a.opportunityName}</span>
+                <span className="text-[13px] text-muted">
+                  {APPLICATION_STATUS[a.status] ?? `Estado ${a.status}`} · {date(a.recordedAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
-      {isOwner && (
+      {isOwner ? (
         <NetworkGuard>
           <AddMilestone tokenId={tokenId} onDone={() => milestones.refetch()} />
         </NetworkGuard>
+      ) : (
+        <p className="border-t border-rule pt-4 text-[13px] text-muted">
+          Conecta la wallet del founder para registrar hitos en este passport.
+        </p>
       )}
-      {!isOwner && (
-        <p className="text-xs opacity-70">Conecta la wallet del founder para registrar hitos.</p>
-      )}
-    </main>
+    </div>,
   );
 }

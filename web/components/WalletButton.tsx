@@ -12,21 +12,29 @@ export function WalletButton() {
 
   if (isConnected && address) {
     return (
-      <button className="rounded border border-foreground/20 px-3 py-1 text-sm" onClick={() => disconnect()}>
-        {short(address)} · Salir
+      <button
+        className="btn btn-quiet mono group"
+        onClick={() => disconnect()}
+        title="Desconectar wallet"
+        aria-label={`Wallet ${address}. Desconectar`}
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-verified" aria-hidden />
+        <span className="group-hover:hidden">{short(address)}</span>
+        <span className="hidden group-hover:inline">Desconectar</span>
       </button>
     );
   }
   return (
     <div className="flex flex-col items-end">
       <button
-        className="rounded bg-foreground px-3 py-1 text-sm text-background disabled:opacity-50"
+        className="btn btn-quiet"
         disabled={isPending || !connectors.length}
         onClick={() => connect({ connector: connectors[0] })}
       >
-        {isPending ? "Conectando…" : "Conectar wallet"}
+        {isPending ? "Esperando a la wallet…" : "Conectar wallet"}
       </button>
-      {error && <span className="mt-1 text-xs text-red-500">{error.message.slice(0, 80)}</span>}
+      {!connectors.length && <span className="mt-1 text-xs text-muted">No se detecta ninguna wallet en el navegador.</span>}
+      {error && <span role="alert" className="mt-1 max-w-56 text-right text-xs text-danger">{error.message.slice(0, 90)}</span>}
     </div>
   );
 }

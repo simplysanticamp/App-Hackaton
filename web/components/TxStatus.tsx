@@ -1,16 +1,33 @@
 import { hskTestnet } from "@/lib/chains";
 
-export function TxStatus({ hash, pending, error }: { hash?: `0x${string}`; pending: boolean; error?: Error | null }) {
+type Props = {
+  hash?: `0x${string}`;
+  /** Esperando firma en la wallet. */
+  signing?: boolean;
+  /** Tx enviada, esperando confirmación en bloque. */
+  confirming?: boolean;
+  confirmed?: boolean;
+  error?: Error | null;
+};
+
+const errorText = (e: Error) => (("shortMessage" in e && (e.shortMessage as string)) || e.message).slice(0, 220);
+
+/** Estados de una tx: firma → confirmando → confirmada / fallida, con link al explorer si hay uno. */
+export function TxStatus({ hash, signing, confirming, confirmed, error }: Props) {
   const explorer = hskTestnet.blockExplorers?.default.url;
+  if (!signing && !confirming && !confirmed && !error && !hash) return null;
   return (
-    <div className="text-xs">
-      {pending && <p className="opacity-70">Esperando confirmación…</p>}
-      {error && <p className="text-red-500">{(("shortMessage" in error && error.shortMessage) || error.message).toString().slice(0, 200)}</p>}
+    <div className="space-y-1 text-[13px]" aria-live="polite">
+      {signing && <p className="working">Firma la transacción en tu wallet…</p>}
+      {confirming && <p className="working">Transacción enviada, esperando confirmación…</p>}
+      {confirmed && <p className="text-verified">Confirmada onchain.</p>}
+      {error && <p role="alert" className="text-danger">Falló: {errorText(error)}</p>}
       {hash && (
-        <p className="break-all opacity-70">
-          tx:{" "}
+        <p className="mono break-all text-muted">
           {explorer ? (
-            <a className="underline" href={`${explorer}/tx/${hash}`} target="_blank" rel="noreferrer">{hash}</a>
+            <a className="link" href={`${explorer}/tx/${hash}`} target="_blank" rel="noreferrer noopener">
+              {hash}
+            </a>
           ) : (
             hash
           )}
