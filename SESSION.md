@@ -1,38 +1,66 @@
-﻿# SESSION — estado vivo (actualizar con /handoff)
+# SESSION — estado vivo (actualizar con /handoff)
 
 ## Última actualización
-2026-09-19 (sesión autónoma de contratos) — capa onchain ampliada al spec completo: roles, historial legible y financiación reportada. Auditada con contexto fresco (apto testnet, no mainnet) y corregidos A1/A2/A3/B1. **40 tests**, 100% coverage en `src/`. Nada desplegado todavía. Ver `SUMMARY.md`, `PROGRESS.md`, `DECISIONS.md`, `BLOCKERS.md`.
+2026-09-20 — **contratos desplegados en HSK testnet (133)** y verificados leyendo la cadena. Hubo que
+desplegar dos veces: el primer intento quedó con los roles en una dirección sin clave privada (ver
+Decisiones). Scripts arreglados, **40 tests** en verde, `develop` pusheado a `origin`. Detalle del
+incidente en `DECISIONS.md` 31-36. Ver también `SUMMARY.md`, `PROGRESS.md`, `BLOCKERS.md`.
 
-## Hecho
-- `.claude/` completo, CLAUDE.md, AGENTS.md, .mcp.json.
-- **Contratos** (`contracts/`): ProjectPassport (soulbound + ERC-5192), Milestones (AccessControl + `VALIDATOR_ROLE`), FundingRegistry (AccessControl + `RECORDER_ROLE`, historial en storage, `recordFundingReceived`). **35 tests** (unit + fuzz + integración) pasan, **100% coverage** de líneas/ramas/funciones en `src/`. 4 scripts de deploy (uno por contrato + combinado), simulados OK. `contracts/README.md` propio. Solc 0.8.28, evm `paris`, OZ 5.4.0 vendorizado en `lib/`.
-- **Backend** (`web/lib/agent`): research (Claude + web search), matching (Supabase o demo), pitch, `lib/evidence.ts` (keccak256 en el CLIENTE; se eliminó `/api/evidence`), rate limiting en memoria (IP solo de x-vercel-forwarded-for; fuera de Vercel requiere TRUST_PROXY_HEADERS=1).
-- **x402 cliente** (`lib/agent/x402.ts`) con caps por tx/día y allowlist de payees. Sin probar con pago real.
-- **x402 servidor**: `/api/report/[tokenId]` responde 402 ($0.01 USDC, Base Sepolia). El reporte lee Passport/Milestones vía `lib/chain.ts` si están PASSPORT_ADDRESS, MILESTONES_ADDRESS y el RPC; si no, devuelve demo. Probado en anvil local (lectura + token inexistente).
-- Foundry **1.5.1-stable** instalado en `%USERPROFILE%\.foundry\bin` (no está en PATH permanente). PowerShell: `$env:PATH = "$env:USERPROFILE\.foundry\bin;$env:PATH"`. (La nota anterior de "1.8.3 en `~/.foundry/bin`" era de otro entorno: esa ruta no existía en esta máquina.)
+## Desplegado — HSK testnet, chain 133 (sin verificar en Blockscout)
+```
+PASSPORT_ADDRESS=0x4aD904AD0a718e0bd61BF0006169e493D176Db88
+MILESTONES_ADDRESS=0xe4Cdb8C27DeEa738F17bb6BDB5E5E3024e9d9052
+FUNDING_REGISTRY_ADDRESS=0x26478A32Fb854dB9f36b239fbd4C03B3df7049b4
+```
+RPC confirmado `https://testnet.hsk.xyz`. Deployer = owner = admin = validator
+`0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe`, keystore `bootstrap-deployer` (contraseña local, nunca en el
+repo), ~0.093 HSK de saldo. Todo en `deployments/133.json`, incluidas las 3 direcciones del deploy fallido
+marcadas `NO USAR`.
+
+## Hecho (además del deploy)
+- **Contratos**: ProjectPassport (soulbound + ERC-5192), Milestones (`VALIDATOR_ROLE`), FundingRegistry
+  (`RECORDER_ROLE`, historial en storage, `recordFundingReceived`). 40 tests, 100% coverage en `src/`.
+  Solc 0.8.28, evm `paris`, OZ 5.4.0 vendorizado. 4 scripts de deploy, todos sobre `script/DeployBase.sol`.
+- **Backend** (`web/lib/agent`): research (Claude + web search), matching (Supabase o demo), pitch,
+  `lib/evidence.ts` (keccak256 en el CLIENTE), rate limiting en memoria (fuera de Vercel requiere
+  `TRUST_PROXY_HEADERS=1`).
+- **x402**: cliente con caps por tx/día y allowlist (sin probar con pago real); servidor
+  `/api/report/[tokenId]` devuelve 402 ($0.01 USDC, Base Sepolia), probado en anvil.
+- Foundry **1.5.1-stable** en `%USERPROFILE%\.foundry\bin`, fuera del PATH:
+  `$env:PATH = "$env:USERPROFILE\.foundry\bin;$env:PATH"`.
+- Git: `JuanMancilla7` ya tiene escritura en `simplysanticamp/App-Hackaton`. `develop` sincronizado.
 
 ## Decisiones
-- Chain: contratos en HSK testnet 133 (mirror a 177 solo si sobra tiempo); x402 en Base Sepolia (opción A). Spike de "todo en HSK" solo si sobra tiempo.
-- Exactamente 3 contratos; FundingRegistry es el recortable. ~~`recordFundingReceived` fuera del MVP~~ → **implementado** (lo pedía el spec; no mueve dinero, solo registra).
+- **`OWNER` es obligatoria en los scripts y `DeployBase.sol` rechaza `0x1804c8AB…`** (el caller por defecto
+  de forge, sin clave privada). El default `msg.sender` dejó el primer deploy con owner y
+  `DEFAULT_ADMIN_ROLE` irrecuperables: sin rotación a multisig, que es lo que justifica usar `AccessControl`.
+- **Verificar deploys contra la cadena (`cast call`), no contra los logs del script**: los logs salen de la
+  simulación y en el incidente imprimieron las direcciones correctas mientras el estado real era otro.
+- **owner, admin y validator comparten EOA en la demo**, contra la recomendación de separarlos. Deliberado
+  (una sola wallet con fondos) y hay que decirlo en el pitch. El founder será otra wallet, así que "un
+  validator no verifica su propio hito" se sostiene.
+- Chain: contratos en HSK 133 (mirror a 177 solo si sobra tiempo); x402 en Base Sepolia (opción A).
+- Exactamente 3 contratos; FundingRegistry es el recortable.
 - Passport: el founder mintea el suyo; el owner puede mintear en su nombre.
-- Milestones: el dueño del passport **o un `VALIDATOR_ROLE`** agrega (cambió: antes solo el dueño); solo `VALIDATOR_ROLE` verifica, y **no puede verificar un hito que él mismo registró**. El `author` va en storage (no solo en el evento) para que quede auditable quién escribió cada declaración. **Revisar si querés volver al modelo estricto antes de desplegar** (ver `SUMMARY.md`).
-- Deploy: `ADMIN` separado de `OWNER` y `VALIDATOR`. Si comparten clave, quien la filtre puede fabricar un historial verificado de cero. La clave privada nunca va al `.env`: keystore (`cast wallet import bootstrap-deployer --interactive`) + `--account`.
-- `AccessControl` en vez de `Ownable` donde hay verificación: los roles pasan a multisig en producción sin redesplegar.
-- Registros inmutables: un cambio de estado de una aplicación es una entrada nueva, no un update.
+- Milestones: agrega el dueño del passport o un `VALIDATOR_ROLE`; solo `VALIDATOR_ROLE` verifica y no puede
+  verificar un hito propio. El `author` va en storage para que quede auditable quién declaró qué.
+- Registros inmutables: un cambio de estado es una entrada nueva, no un update.
 - El frontend nunca toca el LLM: todo por `/api/agent`.
 
 ## Próximos pasos
-1. Auditoría hecha (apto testnet, no mainnet). Corregidos M1 (503 sin contratos, antes del paywall), M2 (IP confiable), M3 (hash en cliente), M4 (escape de <>). Pendientes bajos: abortar pago x402 si asset != USDC, lectura acotada de fuente premium, Ownable2Step, `.gitignore` con `!.env.example`, slither antes de mainnet, tope de gasto duro en el panel de Anthropic.
-2. Deploy testnet 133: keystore (`cast wallet import`), `VALIDATOR`, RPC en env. Guardar direcciones en `deployments/133.json`.
-3. Exportar ABIs al front. `FundingRegistry` todavía no está integrado en el frontend y ahora tiene lecturas útiles para el dashboard (`getApplications`, `getAllFundingReceived`). Pipeline del agente probado end-to-end SOLO con LLM simulado (falta prueba con API key real).
+1. Verificar los 3 contratos en Blockscout (bloqueado: falta URL del explorer + API key).
+2. Exportar ABIs al front e integrar `FundingRegistry`, que todavía no está conectado y ya tiene lecturas
+   útiles para el dashboard (`getApplications`, `getAllFundingReceived`).
+3. Probar el pipeline del agente con `ANTHROPIC_API_KEY` real (hoy solo probado con LLM simulado).
 4. Curar 2-3 convocatorias reales en Supabase (hoy son 3 filas DEMO).
-5. Definir fuente premium para el caso agent-pays-for-data.
-6. Frontend (dashboard, chat, wallet): el usuario pidió dejarlo para después.
+5. Frontend (dashboard, chat, wallet) — el usuario lo dejó para después. Definir fuente premium para
+   agent-pays-for-data. Opcional: 2ª dirección con `VALIDATOR_ROLE` para demostrar rotación en vivo.
+6. Pendientes bajos de la auditoría: abortar pago x402 si asset != USDC, lectura acotada de fuente premium,
+   Ownable2Step, `.gitignore` con `!.env.example`, slither y tope de gasto en Anthropic antes de mainnet.
 
 ## Bloqueos / pendientes del usuario
-- Deadline real; URLs RPC y explorer de HSK (van en `.env`).
-- `ANTHROPIC_API_KEY` en `web/.env.local` para probar el LLM de punta a punta.
-- Actualizar `web/.env.example` a mano (mi permiso lo bloquea): `ANTHROPIC_API_KEY`, `LLM_MODEL`, `AGENT_RATE_PER_IP_HOUR=5`, `AGENT_RATE_GLOBAL_DAY=200`, `AGENT_MAX_PER_TX_USD`, `AGENT_MAX_PER_DAY_USD`, `AGENT_ALLOWED_PAYEES`, `PREMIUM_SOURCE_URL`, `X402_PAY_TO`, `X402_FACILITATOR_URL`, `X402_REPORT_PRICE`, `PASSPORT_ADDRESS`, `MILESTONES_ADDRESS`, `TRUST_PROXY_HEADERS` (solo si hay proxy propio).
+- Deadline real. URL del **explorer de HSK** + API key de Blockscout (única pieza que falta para el paso 1).
+- `ANTHROPIC_API_KEY` en `web/.env.local`.
 - Wallet del agente para x402: fondos mínimos en Base Sepolia.
-- Crear `contracts/.env.example` a mano (mi permiso bloquea esa ruta): `HSK_TESTNET_RPC`, `HSK_MAINNET_RPC`, `HSK_TESTNET_EXPLORER`, `VALIDATOR`, `OWNER`, `PASSPORT_ADDRESS`. Contenido exacto en `BLOCKERS.md` §2; tabla explicada en `contracts/README.md`.
-
+- Crear a mano (mis permisos bloquean esas rutas) `contracts/.env.example` y actualizar `web/.env.example`.
+  Contenido exacto en `BLOCKERS.md` §2; tabla de variables en `contracts/README.md`.
