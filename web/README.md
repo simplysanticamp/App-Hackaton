@@ -34,3 +34,23 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Deploy en Vercel
+
+1. Importar el repo en Vercel con **Root Directory = `web`** (framework Next.js, se detecta solo).
+2. Variables de entorno (Project Settings → Environment Variables):
+
+| Variable | Expuesta al navegador | Para qué |
+|---|---|---|
+| `NEXT_PUBLIC_PASSPORT_ADDRESS` | sí | ProjectPassport en HSK 133 |
+| `NEXT_PUBLIC_MILESTONES_ADDRESS` | sí | Milestones |
+| `NEXT_PUBLIC_FUNDING_REGISTRY_ADDRESS` | sí | FundingRegistry (opcional) |
+| `NEXT_PUBLIC_HSK_TESTNET_RPC` | sí | RPC (por defecto `https://testnet.hsk.xyz`) |
+| `NEXT_PUBLIC_HSK_TESTNET_EXPLORER` | sí | Explorer, para links a tx (opcional) |
+| `ANTHROPIC_API_KEY` | **no** | `/api/agent` |
+| `PASSPORT_ADDRESS`, `MILESTONES_ADDRESS` | no | lecturas de `/api/report/[tokenId]` |
+| `X402_PAY_TO` | no | payee del reporte (x402, Base Sepolia) |
+| Supabase (URL + clave publicable) | ver `.env.example` | convocatorias |
+
+Las direcciones `NEXT_PUBLIC_*` se inlinean en el build: tras cambiarlas hay que **redesplegar**.
+`/api/agent` declara `maxDuration = 60`; el plan Hobby puede recortarlo.
