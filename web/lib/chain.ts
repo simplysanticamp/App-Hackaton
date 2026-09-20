@@ -1,5 +1,8 @@
 // Lecturas onchain (solo lectura, sin firmar) de los contratos de Bootstrap en HSK Chain.
-import { createPublicClient, http, parseAbi, type Address } from "viem";
+import { createPublicClient, defineChain, http, parseAbi, type Address } from "viem";
+
+const HSK_TESTNET_ID = 133;
+const MAX_MILESTONES = 50; // tope defensivo de lecturas por reporte
 
 const passportAbi = parseAbi([
   "function ownerOf(uint256 tokenId) view returns (address)",
@@ -24,6 +27,8 @@ export function chainConfigured() {
 
 export type PassportReport = {
   tokenId: string;
+  /** Total onchain. Si es mayor que `milestones.length`, se devuelven solo los últimos. */
+  milestoneTotal: number;
   founder: Address;
   metadataURI: string;
   milestones: {
@@ -44,7 +49,16 @@ export type PassportReport = {
 /** Devuelve null si el passport no existe. Lanza si la cadena no está configurada o el RPC falla. */
 export async function getPassportReport(tokenId: bigint): Promise<PassportReport | null> {
   if (!chainConfigured()) throw new Error("chain_not_configured");
-  const client = createPublicClient({ transport: http(process.env.NEXT_PUBLIC_HSK_TESTNET_RPC) });
+  const rpc = process.env.NEXT_PUBLIC_HSK_TESTNET_RPC as string;
+  const chain = defineChain({
+    id: HSK_TESTNET_ID,
+    name: "HSK Chain testnet",
+    nativeCurrency: { name: "HSK", symbol: "HSK", decimals: 18 },
+    rpcUrls: { default: { http: [rpc] } },
+  });
+  const client = createPublicClient({ chain, transport: http(rpc) });
+  // Con `chain` definido, viem no valida por sí solo que el RPC sea de esa cadena: se comprueba aquí.
+  if ((await client.getChainId()) !== HSK_TESTNET_ID) throw new Error("rpc_wrong_chain");
   const passport = process.env.PASSPORT_ADDRESS as Address;
   const milestones = process.env.MILESTONES_ADDRESS as Address;
 
@@ -59,24 +73,28 @@ export async function getPassportReport(tokenId: bigint): Promise<PassportReport
     client.readContract({ address: milestones, abi: milestonesAbi, functionName: "milestoneCount", args: [tokenId] }),
   ]);
 
-  const n = Number(count > 50n ? 50n : count); // tope defensivo
+  // Los ÚLTIMOS N, no los primeros: si alguien llena el historial de basura, los hitos reales no salen de la ventana.
+  const total = Number(count);
+  const n = Math.min(total, MAX_MILESTONES);
+  const start = total - n;
   const items = await Promise.all(
     Array.from({ length: n }, (_, i) =>
       client.readContract({
         address: milestones,
         abi: milestonesAbi,
         functionName: "getMilestone",
-        args: [tokenId, BigInt(i)],
+        args: [tokenId, BigInt(start + i)],
       }),
     ),
   );
 
   return {
     tokenId: tokenId.toString(),
+    milestoneTotal: total,
     founder,
     metadataURI,
-    milestones: items.map((m, id) => ({
-      id,
+    milestones: items.map((m, i) => ({
+      id: start + i,
       description: m.description,
       evidenceHash: m.evidenceHash,
       createdAt: Number(m.createdAt),

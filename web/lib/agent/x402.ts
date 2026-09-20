@@ -8,6 +8,8 @@ import { AgentError } from "./types";
 
 const NETWORK = "eip155:84532"; // Base Sepolia
 const USDC_DECIMALS = 6;
+// USDC de Circle en Base Sepolia (eip155:84532). Verificar en developers.circle.com/stablecoins/usdc-contract-addresses.
+const USDC_ASSET = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const MAX_PER_TX_USD = process.env.AGENT_MAX_PER_TX_USD ?? "0.05";
 
 let _fetch: typeof fetch | null = null;
@@ -25,8 +27,9 @@ function paidFetch(): typeof fetch {
     })
     .onBeforePaymentCreation(async ({ selectedRequirements: r }) => {
       if (r.network !== NETWORK) return { abort: true, reason: "red no permitida" };
+      // El monto se interpreta en USDC (6 decimales): con otro asset el cap en USD no significaría nada.
+      if (r.asset?.toLowerCase() !== USDC_ASSET.toLowerCase()) return { abort: true, reason: "asset no permitido" };
       try {
-        // Asume USDC (6 decimales), único asset permitido por spendControls por defecto.
         assertPaymentAllowed(Number(r.amount) / 10 ** USDC_DECIMALS, r.payTo);
       } catch (e) {
         if (e instanceof PaymentDenied) return { abort: true, reason: e.message };
