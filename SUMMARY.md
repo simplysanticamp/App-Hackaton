@@ -18,11 +18,38 @@ Están todas en `DECISIONS.md`, pero estas tres son las que un juez técnico te 
   porque el flujo de la demo es que el usuario mintea desde su wallet, y cambiarlo obligaría al backend a
   firmar transacciones — algo que `CLAUDE.md` prohíbe explícitamente.
 
-### 2. El deploy está listo pero no ejecutado: falta la URL del RPC de HSK
+### 2. Desplegado en HSK testnet 133 (2026-09-20) — ABIs listos para el frontend
 
-Es el único bloqueante real para la demo. Ver `BLOCKERS.md` §1. Necesito de ti `HSK_TESTNET_RPC`,
-`HSK_TESTNET_EXPLORER`, `VALIDATOR` y una wallet con fondos de testnet en keystore. Con eso, desplegar es
-un comando. El cableado entre contratos ya está verificado por un test que ejecuta el script real.
+> **Para Jose:** el frontend es tu parte, no la toqué. Esto es lo que necesitás de la capa onchain.
+
+Direcciones desplegadas y comprobadas leyendo la cadena (no los logs del script):
+
+```
+PASSPORT_ADDRESS=0x4aD904AD0a718e0bd61BF0006169e493D176Db88
+MILESTONES_ADDRESS=0xe4Cdb8C27DeEa738F17bb6BDB5E5E3024e9d9052
+FUNDING_REGISTRY_ADDRESS=0x26478A32Fb854dB9f36b239fbd4C03B3df7049b4
+```
+
+RPC `https://testnet.hsk.xyz` · chain id 133 · owner = admin = validator =
+`0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe`. Todo el detalle, con tx hashes, en `deployments/133.json`.
+
+Los ABIs salen de `contracts/out/<Contrato>.sol/<Contrato>.json` (campo `abi`). **Ojo: `contracts/out/`
+está en `.gitignore`**, así que no te llegan con un `git pull` — hay que compilar primero:
+
+```powershell
+$env:PATH = "$env:USERPROFILE\.foundry\bin;$env:PATH"
+cd contracts
+forge build
+forge inspect ProjectPassport  abi --json > ..\web\lib\abi\ProjectPassport.json
+forge inspect Milestones       abi --json > ..\web\lib\abi\Milestones.json
+forge inspect FundingRegistry  abi --json > ..\web\lib\abi\FundingRegistry.json
+```
+
+Cuando los integres: `FundingRegistry` todavía no está conectado y ya tiene las lecturas que el dashboard
+necesita (`getApplications`, `getAllFundingReceived`). Y `web/lib/chain.ts` es la única pieza del front
+acoplada al ABI: si cambian los contratos, se rompe ahí primero.
+
+Sin verificar en Blockscout todavía — el dominio del explorer no resuelve, ver `BLOCKERS.md` §1.
 
 ### 3. Corré los tests vos mismo antes de confiar en este resumen
 
@@ -86,7 +113,8 @@ founder puede cambiar el contenido después de que se lo revisaron).
 Detalle en `BLOCKERS.md`. Resumen: **nada del work order (a)-(f)**; todo está completo y en verde.
 Lo pendiente es externo:
 
-1. **Deploy a testnet** — falta el RPC de HSK. Bloqueante para la demo.
+1. **Verificación en Blockscout** — el dominio del explorer de testnet no resuelve. No bloquea la demo:
+   los contratos ya están desplegados y funcionan, solo no se ve el código fuente en el explorer.
 2. **`contracts/.env.example`** — mis permisos bloquean esa ruta. Las variables están documentadas en el
    README; el contenido exacto del archivo está en `BLOCKERS.md` §2 para que lo pegues.
 3. **`slither`** — no instalado y no hay Python usable. No bloquea testnet; sí antes de mainnet.
@@ -95,9 +123,9 @@ Lo pendiente es externo:
 
 ## Lo que yo haría después
 
-1. Desplegar en testnet 133 y guardar las direcciones en `deployments/133.json`.
-2. Exportar los ABIs a `web/` — el `FundingRegistry` todavía no está integrado en el frontend, y ahora
-   tiene funciones de lectura que sirven directo para el dashboard (`getApplications`,
-   `getAllFundingReceived`).
-3. Decidir sobre el punto 1 de arriba (¿el validator puede escribir hitos ajenos?) antes de que el
-   contrato esté desplegado y la decisión cueste un redeploy.
+1. ~~Desplegar en testnet 133~~ — hecho el 2026-09-20, direcciones en `deployments/133.json`.
+2. Confirmar con los organizadores la URL real del explorer y verificar los tres contratos.
+3. Exportar los ABIs a `web/` (ver §2) e integrar `FundingRegistry` — parte de Jose.
+4. El punto 1 de arriba (¿el validator puede escribir hitos ajenos?) **ya cuesta un redeploy**: los
+   contratos están desplegados con ese modelo. En testnet redesplegar es barato; decidilo antes de que
+   haya datos de demo que no quieras perder.
