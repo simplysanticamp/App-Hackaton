@@ -16,16 +16,20 @@ Sepolia; `chain.ts` valida chain id 133 y lee los últimos 50 hitos (`milestoneT
 El backend lee con `SUPABASE_PUBLISHABLE_KEY` (o `SUPABASE_SERVICE_KEY` si existe); `SUPABASE_URL` debe ser
 solo el dominio, sin `/rest/v1/`.
 
+2026-09-20 (Santiago) — **REDEPLOY v2 HECHO** con el código final, desde la wallet de Santiago
+(`0x2629…27C9`, owner = admin = validator). Comprobado contra la cadena con `cast call`: roles, cableado y
+comportamiento de M1/M2. Las direcciones v1 de Juan quedaron en `deployments/133.json` como `superseded`.
+Costó 0.0037 HSK. Falta poner las direcciones en `web/.env.local` y probar el flujo en el navegador.
+
 ## Desplegado — HSK testnet, chain 133 (sin verificar en Blockscout)
 ```
-PASSPORT_ADDRESS=0x4aD904AD0a718e0bd61BF0006169e493D176Db88
-MILESTONES_ADDRESS=0xe4Cdb8C27DeEa738F17bb6BDB5E5E3024e9d9052
-FUNDING_REGISTRY_ADDRESS=0x26478A32Fb854dB9f36b239fbd4C03B3df7049b4
+PASSPORT_ADDRESS=0xC32499C88Df7360198Da98DeE609E94a5919ce64
+MILESTONES_ADDRESS=0xf87fF4857Ac6DDDC9Dc3F8509D0eEEAc96532562
+FUNDING_REGISTRY_ADDRESS=0x19476c05664ec397934AEfe6220F2653c1020a24
 ```
-RPC confirmado `https://testnet.hsk.xyz`. Deployer = owner = admin = validator
-`0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe`, keystore `bootstrap-deployer` (contraseña local, nunca en el
-repo), ~0.093 HSK de saldo. Todo en `deployments/133.json`, incluidas las 3 direcciones del deploy fallido
-marcadas `NO USAR`.
+RPC confirmado `https://testnet.hsk.xyz`. Deployer = owner = admin = validator `0x2629091D43cbB07dAaEFbca71Bc643785b5427C9`
+(wallet `bootstrap-deployer` en el equipo de Santiago; el deploy v1 de Juan quedó en `superseded`).
+Todo en `deployments/133.json`, incluidas las direcciones de los deploys anteriores marcadas `NO USAR`.
 
 ## Hecho (además del deploy)
 - **Contratos**: ProjectPassport (soulbound + ERC-5192), Milestones (`VALIDATOR_ROLE`), FundingRegistry
@@ -58,7 +62,7 @@ marcadas `NO USAR`.
 - El frontend nunca toca el LLM: todo por `/api/agent`.
 
 ## Próximos pasos
-0. **Redesplegar contratos** (M1 revocación + M2 `ipfs://` obligatorio ya en el código, 46 tests en verde). Las direcciones de `deployments/133.json` son de la versión anterior. Lo firma Juan, que tiene la wallet `bootstrap-deployer` en su equipo; Santiago no.
+0. ~~Redesplegar contratos~~ HECHO (v2). Siguiente: direcciones en `web/.env.local` y probar el flujo en el navegador (mint, hito, verificar, revocar, reporte x402).
 1. Verificar los 3 contratos en Blockscout. **Bloqueado**: `testnet-explorer.hsk.xyz` no resuelve en
    ningún resolver; hay que confirmar la URL real con los organizadores. Detalle en `BLOCKERS.md` §1.
 2. Exportar ABIs al front e integrar `FundingRegistry`, que todavía no está conectado y ya tiene lecturas

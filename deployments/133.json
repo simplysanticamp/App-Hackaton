@@ -4,28 +4,55 @@
   "rpc": "https://testnet.hsk.xyz",
   "deployedAt": "2026-09-20",
   "verified": false,
-  "verificationNote": "Sin verificar en Blockscout todavia: falta la URL del explorer de HSK y la API key.",
+  "verificationNote": "Sin verificar en Blockscout: testnet-explorer.hsk.xyz no resuelve. Estado comprobado leyendo la cadena (cast call): owner, roles, cableado y comportamiento de M1/M2.",
+  "version": "v2: revokeVerification (M1), mintPassport exige ipfs:// (M2), Ownable2Step en ProjectPassport. 47 tests.",
   "roles": {
-    "deployer": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
-    "owner": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
-    "admin": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
-    "validator": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
-    "note": "owner, admin y validator comparten EOA en la demo. Riesgo reconocido en el pitch: quien filtre esa clave puede fabricar historial verificado. En produccion, admin a multisig (los roles se rotan sin redesplegar)."
+    "deployer": "0x2629091D43cbB07dAaEFbca71Bc643785b5427C9",
+    "owner": "0x2629091D43cbB07dAaEFbca71Bc643785b5427C9",
+    "admin": "0x2629091D43cbB07dAaEFbca71Bc643785b5427C9",
+    "validator": "0x2629091D43cbB07dAaEFbca71Bc643785b5427C9",
+    "note": "owner, admin y validator comparten EOA en la demo. Riesgo reconocido en el pitch: quien filtre esa clave puede fabricar historial verificado. En produccion, admin a multisig (los roles se rotan sin redesplegar). El founder de la demo debe ser OTRA wallet: un validator no verifica un hito que registro el mismo."
   },
   "contracts": {
     "ProjectPassport": {
-      "address": "0x4aD904AD0a718e0bd61BF0006169e493D176Db88",
-      "txHash": "0xbfd7bc5a9440c07ff9ad3a34ebef222b9e16ded81cd50e55147aa51ab30ce77c"
+      "address": "0xC32499C88Df7360198Da98DeE609E94a5919ce64",
+      "txHash": "0x39444629ff65f332e6a1665ff5b892723b534caafd076c7967e6fe83b192f6c8"
     },
     "Milestones": {
-      "address": "0xe4Cdb8C27DeEa738F17bb6BDB5E5E3024e9d9052",
-      "txHash": "0x85fe921ee2887815cb9420f4490b4c701404ff5937e0e2b53340433271304e54"
+      "address": "0xf87fF4857Ac6DDDC9Dc3F8509D0eEEAc96532562",
+      "txHash": "0x3cace7f24043e53befc158224ed00bec92027c761fe057996ec93065cbcca816"
     },
     "FundingRegistry": {
-      "address": "0x26478A32Fb854dB9f36b239fbd4C03B3df7049b4",
-      "txHash": "0xd845d3762cb2c39197c96c837f46c41ea6cfdadeba54a0af7a042aed28cbcf2d"
+      "address": "0x19476c05664ec397934AEfe6220F2653c1020a24",
+      "txHash": "0x315ebd7203d8710e0503c14ccbe5033f6b840368062962407dae3da6f366e6f3"
     }
   },
+  "superseded": [
+    {
+      "reason": "v1 (2026-09-20, wallet de Juan Mancilla): sin revokeVerification, sin ipfs:// obligatorio y sin Ownable2Step. Reemplazado por v2. NO USAR.",
+      "roles": {
+        "deployer": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
+        "owner": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
+        "admin": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
+        "validator": "0x887dbD23Cbda1CcbB3218F8dfB9f8c351825E1fe",
+        "note": "owner, admin y validator comparten EOA en la demo. Riesgo reconocido en el pitch: quien filtre esa clave puede fabricar historial verificado. En produccion, admin a multisig (los roles se rotan sin redesplegar)."
+      },
+      "contracts": {
+        "ProjectPassport": {
+          "address": "0x4aD904AD0a718e0bd61BF0006169e493D176Db88",
+          "txHash": "0xbfd7bc5a9440c07ff9ad3a34ebef222b9e16ded81cd50e55147aa51ab30ce77c"
+        },
+        "Milestones": {
+          "address": "0xe4Cdb8C27DeEa738F17bb6BDB5E5E3024e9d9052",
+          "txHash": "0x85fe921ee2887815cb9420f4490b4c701404ff5937e0e2b53340433271304e54"
+        },
+        "FundingRegistry": {
+          "address": "0x26478A32Fb854dB9f36b239fbd4C03B3df7049b4",
+          "txHash": "0xd845d3762cb2c39197c96c837f46c41ea6cfdadeba54a0af7a042aed28cbcf2d"
+        }
+      }
+    }
+  ],
   "abandoned": [
     {
       "reason": "Primer deploy: OWNER y ADMIN quedaron en 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38 (sender por defecto de forge, sin clave privada). owner del Passport y DEFAULT_ADMIN_ROLE inalcanzables para siempre. NO USAR.",
