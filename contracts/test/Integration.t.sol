@@ -52,7 +52,7 @@ contract IntegrationTest is Test {
 
         Milestones.Milestone memory m = milestones.getMilestone(tokenId, milestoneId);
         assertEq(m.evidenceHash, evidenceHash);
-        assertEq(m.verifiedAt, block.timestamp);
+        assertEq(m.verifiedAt, vm.getBlockTimestamp());
         assertLt(m.createdAt, m.verifiedAt, "verificado despues de creado");
 
         // 4. El founder registra que aplicó a una convocatoria y, más tarde, que fue aceptada.
@@ -61,7 +61,7 @@ contract IntegrationTest is Test {
             registry.recordFundingApplication(tokenId, "iNNpulsa Aldea 2026", FundingRegistry.Status.Submitted);
         assertEq(appId, 0);
 
-        vm.warp(block.timestamp + 30 days);
+        vm.warp(vm.getBlockTimestamp() + 30 days);
         vm.prank(founder);
         registry.recordFundingApplication(tokenId, "iNNpulsa Aldea 2026", FundingRegistry.Status.Accepted);
 

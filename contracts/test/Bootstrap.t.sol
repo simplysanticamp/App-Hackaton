@@ -275,7 +275,7 @@ contract BootstrapTest is Test {
         vm.prank(validator);
         milestones.verifyMilestone(id, 0);
 
-        assertEq(milestones.getMilestone(id, 0).verifiedAt, block.timestamp);
+        assertEq(milestones.getMilestone(id, 0).verifiedAt, vm.getBlockTimestamp());
     }
 
     function test_RevertWhen_NonValidatorVerifies() public {
@@ -378,7 +378,7 @@ contract BootstrapTest is Test {
         milestones.revokeVerification(id, 0);
 
         Milestones.Milestone memory m = milestones.getMilestone(id, 0);
-        assertEq(m.revokedAt, block.timestamp);
+        assertEq(m.revokedAt, vm.getBlockTimestamp());
         assertEq(m.verifiedAt, verifiedAt, "la verificacion original queda como rastro");
     }
 
